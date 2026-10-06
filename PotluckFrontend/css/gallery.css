@@ -29,3 +29,23 @@ body {
 .gallery-tab:hover {
   background-color: #555;
 }
+
+.gallery-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 10px;
+}
+.gallery-card {
+  background-color: #555;
+  border-radius: 5px;
+  padding: 10px;
+  margin: 10px;
+  width: 150px;
+  text-align: center;
+  transition: transform 0.3s;
+  border: 1px solid #f0dcdc;
+}
+.gallery-card:hover {
+  transform: scale(1.05);
+}
