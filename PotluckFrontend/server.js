@@ -13,10 +13,9 @@ const vite = await createViteServer({
 
 app.use(vite.middlewares);
 
-
 //if first visit, render the register page
 app.get('/', (req, res) => {
-  res.render('register', { vite: true });
+  res.render('index', { vite: true });
 });
 //else render the mini maker page
 app.get('/create', (req, res) => {
@@ -25,6 +24,13 @@ app.get('/create', (req, res) => {
 
 app.get('/profile', (req, res) => {
   res.render('profile', { vite: true });
+});
+
+app.get('/login', (req, res) => {
+  res.render('login', { vite: true });
+});
+app.get('/signup', (req, res) => {
+  res.render('signup', { vite: true });
 });
 
 app.listen(3000, () => {
