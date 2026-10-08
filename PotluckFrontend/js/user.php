@@ -45,5 +45,4 @@ $stmt->close();
 function logout() {
     session_destroy();
 }
-}
 ?>

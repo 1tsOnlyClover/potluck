@@ -3,9 +3,14 @@
   <head>
     <meta charset="utf-8">
     <title>My Profile - Potluck</title>
-    <style>
-      body { margin: 0; }
-    </style>
+    <div class="profile-container">
+      <h1>My Profile</h1>
+      <div class="profile-photo">
+        <img src="<%= profilePhoto %>" alt="Profile Photo">
+      </div>
+      <p>Username: <%= username %></p>
+      <p><%= description %></p>
+    </div>
   </head>
   <body>
     <script>//profile page script</script>

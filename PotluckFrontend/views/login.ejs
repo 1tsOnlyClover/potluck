@@ -7,16 +7,20 @@
     </head>
     <body>
         <h1>Login</h1>
+        <% if (error) { %>
+            <p role="alert"><%= error %></p>
+        <% } %>
         <form action="/login" method="post">
-            <label for="name">Username:</label>
-            <input type="text" id="name" name="name" required>
+            <label for="name">Name or email:</label>
+            <input type="text" id="name" name="name" autocomplete="username" required>
             <br>
             <label for="password">Password:</label>
-            <input type="password" id="password" name="password" required>
+            <input type="password" id="password" name="password" autocomplete="current-password" required>
             <br>
             <button type="submit">Login</button>
             <!-- after login, take the user to the mini-maker -->
+             <!-- send login data to the server and database -->
         </form>
-        <p>Don't have an account? <a href="/register">Register here</a>.</p>
+        <p>Don't have an account? <a href="/signup">Register here</a></p>
     </body>
 </html>

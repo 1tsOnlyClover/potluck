@@ -8,11 +8,18 @@
   <body>
     <div class="login-signup">
       <p>Back for more? Log in!</p>
-      <button>Log in</button>
+      <button onclick="logIn()">Log in</button>
       <p>New here? Join the Potluck!</p>
-      <button>Sign up</button>
+      <button onclick="signUp()">Sign up</button>
       <!-- when clicked the buttons take to login or signup page -->
     </div>
-    <script type="module" src="/server.js"></script>
+    <script>
+      function logIn() {
+        window.location.href = '/login';
+      }
+      function signUp() {
+        window.location.href = '/signup';
+      }
+    </script>
   </body>
 </html>
