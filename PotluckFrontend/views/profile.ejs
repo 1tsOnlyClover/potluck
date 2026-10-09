@@ -2,17 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Profile - Potluck</title>
+    <link rel="stylesheet" href="/css/site.css">
+  </head>
+  <body class="profile-page">
+    <%- include('partials/nav') %>
     <div class="profile-container">
       <h1>My Profile</h1>
       <div class="profile-photo">
-        <img src="<%= profilePhoto %>" alt="Profile Photo">
+        <img src="/assets/default-profile.png" alt="Profile Photo">
       </div>
-      <p>Username: <%= username %></p>
+      <p>Username: <%= userName %></p>
       <p><%= description %></p>
     </div>
-  </head>
-  <body>
-    <script>//profile page script</script>
   </body>
+  <script>//profile page script</script>
 </html>

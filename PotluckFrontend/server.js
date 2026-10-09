@@ -42,6 +42,12 @@ app.use(session({
   },
 }));
 
+app.use((req, res, next) => {
+  res.locals.isLoggedIn = Boolean(req.session.userId);
+  res.locals.userName = req.session.userName;
+  next();
+});
+
 const vite = await createViteServer({
   server: { middlewareMode: true },
   appType: 'custom',
@@ -84,7 +90,7 @@ app.post('/login', async (req, res) => {
 
   try {
     const [users] = await dbPromise.execute(
-      'SELECT id, name, password FROM users WHERE name = ? OR email = ? LIMIT 1',
+      'SELECT id, name, password, description FROM users WHERE name = ? OR email = ? LIMIT 1',
       [identity, identity],
     );
     const user = users[0];
@@ -96,6 +102,7 @@ app.post('/login', async (req, res) => {
     await regenerateSession(req);
     req.session.userId = user.id;
     req.session.userName = user.name;
+    req.session.description = user.description;
     await saveSession(req);
     res.redirect('/create');
   } catch (error) {
@@ -127,6 +134,7 @@ app.post('/signup', async (req, res) => {
     await regenerateSession(req);
     req.session.userId = result.insertId;
     req.session.userName = name;
+    req.session.description = description;
     await saveSession(req);
     res.redirect('/create');
   } catch (error) {
@@ -161,7 +169,7 @@ app.get('/create', requireLogin, (req, res) => {
 });
 
 app.get('/profile', requireLogin, (req, res) => {
-  res.render('profile', { vite: true, userName: req.session.userName });
+  res.render('profile', { vite: true, userName: req.session.userName, description: req.session.description });
 });
 
 app.get('/login', (req, res) => {
@@ -170,6 +178,10 @@ app.get('/login', (req, res) => {
 
 app.get('/signup', (req, res) => {
   res.render('register', { vite: true, error: null });
+});
+
+app.get('/modeller', requireLogin, (req, res) => {
+  res.render('modeller', { vite: true, userName: req.session.userName });
 });
 
 try {

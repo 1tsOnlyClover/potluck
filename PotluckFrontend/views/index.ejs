@@ -4,8 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>POTLUCK</title>
+    <link rel="stylesheet" href="/css/site.css">
+    <link rel="stylesheet" href="/css/index.css">
   </head>
-  <body>
+  <body class="home-page">
+    <%- include('partials/nav') %>
+    <a href="/">
+      <img src="/assets/potluck_logo.png" alt="Potluck Logo">
+    </a>
     <div class="login-signup">
       <p>Back for more? Log in!</p>
       <button onclick="logIn()">Log in</button>

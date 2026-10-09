@@ -2,22 +2,37 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <!-- <link rel="stylesheet" href="/css/gallery.css"> -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Mini - Potluck</title>
+    <link rel="stylesheet" href="/css/site.css">
   </head>
-  <header>
-    <h1>New Mini</h1>
-  </header>
-  <nav>
-    <a href="/">Home</a>
-    <a href="/profile">Profile</a>
-    <a href="/create">Create Mini</a>
-    <a href="/modeller">Create Asset</a>
-  </nav>
-  <body>
-    <!-- Mini maker content goes here -->
-     <script type="module" src="/js/mini-maker.js"></script>
-     <div class="assetGallery">
-
-     </div>
+  <body class="maker-page" data-user-name="<%= userName %>">
+    <%- include('partials/nav') %>
+    <header>
+      <button id="mini-title" class="mini-title" type="button" aria-label="Rename mini">New Mini</button>
+      <form id="rename-form" class="mini-rename" hidden>
+        <label for="mini-name">Mini name</label>
+        <input id="mini-name" name="miniName" maxlength="60" required>
+        <button type="submit">Rename</button>
+        <button id="cancel-rename" type="button">Cancel</button>
+      </form>
+    </header>
+    <div class="mini-actions" aria-label="Mini actions">
+      <button id="save-mini" type="button">Save Mini</button>
+      <button id="load-mini" type="button">Load Mini</button>
+    </div>
+    <p id="mini-status" class="mini-status" role="status" aria-live="polite"></p>
+    <dialog id="load-mini-dialog" class="load-mini-dialog">
+      <form id="load-mini-form">
+        <h2>Load a saved mini</h2>
+        <label for="saved-mini-select">Choose a mini</label>
+        <select id="saved-mini-select" required></select>
+        <div class="load-mini-actions">
+          <button type="submit">Load Mini</button>
+          <button id="cancel-load" type="button">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+    <script type="module" src="/js/mini-maker.js"></script>
   </body>
 </html>

@@ -2,16 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Model - Potluck</title>
-    <style>
-      body { margin: 0; }
-    </style>
+    <link rel="stylesheet" href="/css/site.css">
   </head>
-  
-  <body>
+  <body class="modeller-page">
+    <%- include('partials/nav') %>
+    <div class="model-actions">
+      <button type="button">Save Asset</button>
+      <button type="button">Load Asset</button>
+    </div>
     <% if (vite) { %>
   <script type="module" src="/@vite/client"></script>
   <% } %>
-  <script type="module" src="/app.js"></script>
+  <script type="module" src="/js/modeller.js"></script>
   </body>
 </html>

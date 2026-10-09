@@ -1,0 +1,26 @@
+<nav class="site-nav" aria-label="Main navigation" data-logged-in="<%= isLoggedIn %>">
+  <a href="/">Home</a>
+  <a href="/create" data-requires-login>Make a Mini</a>
+  <a href="/modeller" data-requires-login>Create an Asset</a>
+  <a href="/profile" data-requires-login>Profile</a>
+  <% if (isLoggedIn) { %>
+    <span class="site-nav-greeting">Hi, <%= userName %></span>
+    <form action="/logout" method="post" class="site-nav-logout">
+      <button type="submit">Log out</button>
+    </form>
+  <% } else { %>
+    <a href="/login">Log in</a>
+    <a href="/signup">Sign up</a>
+  <% } %>
+</nav>
+<script>
+  document.querySelector('.site-nav')?.addEventListener('click', (event) => {
+    const link = event.target.closest('a[data-requires-login]');
+    const nav = event.currentTarget;
+
+    if (link && nav.dataset.loggedIn !== 'true') {
+      event.preventDefault();
+      window.alert('Please log in or sign up to access this page.');
+    }
+  });
+</script>

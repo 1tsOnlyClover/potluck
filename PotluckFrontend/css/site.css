@@ -1,0 +1,370 @@
+:root {
+    color-scheme: light;
+    --green: #315b3f;
+    --light-green: #e8efdf;
+    --brown: #79583c;
+    --green-shadow: rgba(49, 91, 63, 0.14);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--green);
+    background: var(--light-green);
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    line-height: 1.5;
+}
+
+a {
+    color: var(--brown);
+    font-weight: 700;
+    text-underline-offset: 0.2em;
+}
+
+a:hover {
+    color: var(--green);
+}
+
+button,
+input,
+textarea {
+    font: inherit;
+}
+
+button {
+    padding: 0.7rem 1.15rem;
+    border: 0;
+    border-radius: 999px;
+    color: var(--light-green);
+    background: var(--green);
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 160ms ease, transform 160ms ease;
+}
+
+button:hover {
+    background: var(--brown);
+    transform: translateY(-1px);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid var(--brown);
+    outline-offset: 3px;
+}
+
+input,
+textarea {
+    width: 100%;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid var(--green);
+    border-radius: 0.8rem;
+    color: var(--green);
+    background: var(--light-green);
+}
+
+textarea {
+    min-height: 6rem;
+    resize: vertical;
+}
+
+.site-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.85rem 1rem;
+    background: var(--light-green);
+}
+
+.site-nav a {
+    padding: 0.55rem 0.9rem;
+    border-radius: 999px;
+    color: var(--light-green);
+    background: var(--green);
+    text-decoration: none;
+}
+
+.site-nav a:hover {
+    color: var(--light-green);
+    background: var(--brown);
+}
+
+.site-nav-greeting {
+    margin-left: auto;
+    font-weight: 700;
+}
+
+.site-nav-logout {
+    margin: 0;
+}
+
+.home-page > .site-nav,
+.auth-page > .site-nav {
+    position: absolute;
+    inset: 0 0 auto;
+}
+
+.auth-page > .site-nav {
+    justify-content: center;
+}
+
+.profile-container {
+    width: min(100% - 2rem, 38rem);
+    margin: 4rem auto;
+    padding: clamp(1.5rem, 5vw, 3rem);
+    border-radius: 1.5rem;
+    background: var(--light-green);
+    box-shadow: 0 1rem 2.5rem var(--green-shadow);
+}
+
+.profile-container h1 {
+    margin-top: 0;
+}
+
+.profile-photo {
+    width: 8rem;
+    height: 8rem;
+    margin: 1.5rem 0;
+    overflow: hidden;
+    border: 0.3rem solid var(--brown);
+    border-radius: 50%;
+}
+
+.profile-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-container p {
+    padding: 0.75rem 1rem;
+    border-radius: 0.8rem;
+    background: var(--light-green);
+}
+
+.maker-page,
+.modeller-page {
+    overflow: hidden;
+    background: transparent;
+}
+
+.maker-page canvas,
+.modeller-page canvas {
+    position: fixed;
+    z-index: 0;
+    inset: 0;
+}
+
+.maker-page header,
+.maker-page .site-nav,
+.modeller-page .site-nav {
+    position: relative;
+    z-index: 1;
+}
+
+.maker-page header {
+    position: fixed;
+    z-index: 2;
+    top: 5.5rem;
+    left: 1.25rem;
+}
+
+.maker-page .site-nav {
+    position: fixed;
+    z-index: 2;
+    inset: 0 0 auto;
+    background: transparent;
+    pointer-events: none;
+}
+
+.maker-page .site-nav > * {
+    pointer-events: auto;
+}
+
+.maker-page .site-nav-greeting {
+    margin-left: auto;
+}
+
+.maker-page .mini-title {
+    max-width: min(70vw, 24rem);
+    margin: 0;
+    padding: 0.5rem 1rem;
+    overflow: hidden;
+    border-radius: 1rem;
+    color: var(--green);
+    background: var(--light-green);
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.maker-page .mini-title:hover {
+    color: var(--light-green);
+}
+
+.mini-rename {
+    display: grid;
+    grid-template-columns: minmax(8rem, 1fr) auto auto;
+    gap: 0.45rem;
+    width: min(90vw, 34rem);
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    border-radius: 1rem;
+    background: var(--light-green);
+    box-shadow: 0 0.5rem 1.5rem var(--green-shadow);
+}
+
+.mini-rename[hidden] {
+    display: none;
+}
+
+.mini-rename label {
+    grid-column: 1 / -1;
+    font-weight: 700;
+}
+
+.mini-rename input {
+    grid-column: 1 / -1;
+}
+
+.load-mini-dialog {
+    width: min(90vw, 28rem);
+    padding: 1.5rem;
+    border: 2px solid var(--brown);
+    border-radius: 1.25rem;
+    color: var(--green);
+    background: var(--light-green);
+}
+
+.load-mini-dialog::backdrop {
+    background: rgba(49, 91, 63, 0.55);
+}
+
+.load-mini-dialog h2 {
+    margin-top: 0;
+}
+
+.load-mini-dialog label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 700;
+}
+
+.load-mini-dialog select {
+    width: 100%;
+    padding: 0.7rem;
+    border: 1px solid var(--green);
+    border-radius: 0.75rem;
+    color: var(--green);
+    background: var(--light-green);
+    font: inherit;
+}
+
+.load-mini-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.mini-actions {
+    position: fixed;
+    z-index: 2;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    display: flex;
+    gap: 0.6rem;
+}
+
+.mini-status {
+    position: fixed;
+    z-index: 2;
+    bottom: 1.25rem;
+    left: 1.25rem;
+    max-width: min(50vw, 24rem);
+    margin: 0;
+    color: var(--light-green);
+    font-weight: 700;
+    text-shadow: 0 1px 3px var(--green);
+}
+
+.maker-page .mini-status:empty {
+    display: none;
+}
+
+.maker-page .site-nav,
+.maker-page header,
+.mini-actions,
+.mini-status {
+    pointer-events: none;
+}
+
+.maker-page .site-nav > *,
+.maker-page header button,
+.mini-actions button {
+    pointer-events: auto;
+}
+
+.mini-actions button {
+    padding: 0.85rem 1.25rem;
+    border-radius: 1rem;
+}
+
+.modeller-page .site-nav-greeting {
+    margin-left: 0;
+}
+
+.model-actions {
+    position: fixed;
+    z-index: 1;
+    right: 1rem;
+    bottom: 1rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+@media (max-width: 480px) {
+    .site-nav {
+        gap: 0.35rem;
+        padding: 0.6rem;
+    }
+
+    .site-nav a {
+        padding: 0.5rem 0.7rem;
+        font-size: 0.9rem;
+    }
+
+    .maker-page header {
+        top: 5rem;
+        left: 0.75rem;
+    }
+
+    .mini-actions {
+        right: 0.75rem;
+        bottom: 0.75rem;
+    }
+
+    .mini-actions button {
+        padding: 0.65rem 0.9rem;
+    }
+
+    .mini-rename {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .mini-rename input {
+        grid-column: 1 / -1;
+    }
+
+    .mini-status {
+        bottom: 4rem;
+        left: 0.75rem;
+        max-width: 80vw;
+    }
+}
