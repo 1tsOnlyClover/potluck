@@ -16,7 +16,7 @@ renderer.setAnimationLoop( animate );
 document.body.appendChild( renderer.domElement );
 
 const geometry = new THREE.DodecahedronGeometry( 1, 0 );
-const material = new THREE.MeshBasicMaterial( { color: 0xdcdcdc } );
+const material = new THREE.MeshBasicMaterial( { color: 0x315b3f } );
 const cube = new THREE.Mesh( geometry, material );
 scene.add( cube );
 
