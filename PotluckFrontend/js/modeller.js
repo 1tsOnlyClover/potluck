@@ -12,6 +12,8 @@ controls.enableDamping = true;
 controls.enableZoom = true;
 controls.minDistance = 2;
 controls.maxDistance = 20;
+controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+controls.mouseButtons.LEFT = null;
 renderer.setAnimationLoop( animate );
 document.body.appendChild( renderer.domElement );
 
@@ -154,7 +156,7 @@ loadForm.addEventListener( 'submit', event => {
   }
 });
 
-document.addEventListener('mousemove', (event) => {
+THREE.MOUSE.addEventListener('mousedown', 'mousemove', (event) => {
     for (let i = 0; i < geometry.vertices.length; i++) {
         geometry.vertices[i].x += 0.01 * Math.sin(event.clientX * 0.01);
         geometry.vertices[i].y += 0.01 * Math.sin(event.clientY * 0.01);
