@@ -17,7 +17,7 @@ controls.mouseButtons.LEFT = null;
 renderer.setAnimationLoop( animate );
 document.body.appendChild( renderer.domElement );
 
-const geometry = new THREE.BoxGeometry( 1, 1, 1 );
+const geometry = new THREE.BoxGeometry( 1, 1, 1, 24, 24, 24 );
 const material = new THREE.MeshBasicMaterial( { color: 0xdcdcdc } );
 const cube = new THREE.Mesh( geometry, material );
 scene.add( cube );
@@ -156,13 +156,80 @@ loadForm.addEventListener( 'submit', event => {
   }
 });
 
-THREE.MOUSE.addEventListener('mousedown', 'mousemove', (event) => {
-    for (let i = 0; i < geometry.vertices.length; i++) {
-        geometry.vertices[i].x += 0.01 * Math.sin(event.clientX * 0.01);
-        geometry.vertices[i].y += 0.01 * Math.sin(event.clientY * 0.01);
-    }
-    geometry.verticesNeedUpdate = true;
-});
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const brushRadius = 0.55;
+const sculptStrength = 0.01;
+let sculpting = false;
+
+function getIntersection( event ) {
+  const bounds = renderer.domElement.getBoundingClientRect();
+  pointer.x = ( ( event.clientX - bounds.left ) / bounds.width ) * 2 - 1;
+  pointer.y = -( ( event.clientY - bounds.top ) / bounds.height ) * 2 + 1;
+  raycaster.setFromCamera( pointer, camera );
+
+  return raycaster.intersectObjects( scene.children, true )
+    .find( intersection => intersection.object.isMesh && intersection.object.geometry?.getAttribute( 'position' ) );
+}
+
+renderer.domElement.style.touchAction = 'none';
+renderer.domElement.style.cursor = 'grab';
+
+renderer.domElement.addEventListener( 'pointerdown', event => {
+  if ( event.button !== 0 ) return;
+
+  const intersection = getIntersection( event );
+  if ( !intersection ) return;
+
+  sculpting = true;
+  controls.enabled = false;
+  renderer.domElement.style.cursor = 'grabbing';
+  renderer.domElement.setPointerCapture( event.pointerId );
+} );
+
+renderer.domElement.addEventListener( 'pointermove', event => {
+  if ( !sculpting ) return;
+
+  const intersection = getIntersection( event );
+  if ( !intersection || !intersection.face ) return;
+
+  const mesh = intersection.object;
+  const position = mesh.geometry.getAttribute( 'position' );
+  const brushCenter = mesh.worldToLocal( intersection.point.clone() );
+  const normal = intersection.face.normal.clone();
+  const movement = -event.movementY * sculptStrength;
+
+  if ( movement === 0 ) return;
+
+  for ( let i = 0; i < position.count; i++ ) {
+    const vertex = new THREE.Vector3().fromBufferAttribute( position, i );
+    const distance = vertex.distanceTo( brushCenter );
+    if ( distance >= brushRadius ) continue;
+
+    const falloff = 1 - distance / brushRadius;
+    const influence = falloff * falloff * movement;
+    vertex.addScaledVector( normal, influence );
+    position.setXYZ( i, vertex.x, vertex.y, vertex.z );
+  }
+
+  position.needsUpdate = true;
+  mesh.geometry.computeVertexNormals();
+  mesh.geometry.computeBoundingSphere();
+} );
+
+function stopSculpting( event ) {
+  if ( !sculpting ) return;
+
+  sculpting = false;
+  controls.enabled = true;
+  renderer.domElement.style.cursor = 'grab';
+  if ( renderer.domElement.hasPointerCapture( event.pointerId ) ) {
+    renderer.domElement.releasePointerCapture( event.pointerId );
+  }
+}
+
+renderer.domElement.addEventListener( 'pointerup', stopSculpting );
+renderer.domElement.addEventListener( 'pointercancel', stopSculpting );
 
 function animate() {
   controls.update();
