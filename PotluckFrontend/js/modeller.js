@@ -6,7 +6,7 @@ const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.inner
 
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight );
-renderer.domElement.setAttribute( 'aria-label', '3D mini preview' );
+renderer.domElement.setAttribute( 'aria-label', '3D asset preview' );
 const controls = new OrbitControls( camera, renderer.domElement );
 controls.enableDamping = true;
 controls.enableZoom = true;

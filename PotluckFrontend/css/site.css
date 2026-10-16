@@ -180,7 +180,10 @@ textarea {
     position: fixed;
     z-index: 2;
     inset: 0 0 auto;
-    background: transparent;
+    border-bottom: 1px solid rgba(49, 91, 63, 0.2);
+    background: rgba(232, 239, 223, 0.94);
+    box-shadow: 0 0.25rem 1rem var(--green-shadow);
+    backdrop-filter: blur(0.5rem);
     pointer-events: none;
 }
 
@@ -192,7 +195,8 @@ textarea {
     margin-left: auto;
 }
 
-.maker-page .mini-title {
+.maker-page .mini-title,
+.maker-page .asset-title {
     max-width: min(70vw, 24rem);
     margin: 0;
     padding: 0.5rem 1rem;
@@ -205,11 +209,13 @@ textarea {
     white-space: nowrap;
 }
 
-.maker-page .mini-title:hover {
+.maker-page .mini-title:hover,
+.maker-page .asset-title:hover {
     color: var(--light-green);
 }
 
-.mini-rename {
+.mini-rename,
+.asset-rename {
     display: grid;
     grid-template-columns: minmax(8rem, 1fr) auto auto;
     gap: 0.45rem;
@@ -221,20 +227,24 @@ textarea {
     box-shadow: 0 0.5rem 1.5rem var(--green-shadow);
 }
 
-.mini-rename[hidden] {
+.mini-rename[hidden],
+.asset-rename[hidden] {
     display: none;
 }
 
-.mini-rename label {
+.mini-rename label,
+.asset-rename label {
     grid-column: 1 / -1;
     font-weight: 700;
 }
 
-.mini-rename input {
+.mini-rename input,
+.asset-rename input {
     grid-column: 1 / -1;
 }
 
-.load-mini-dialog {
+.load-mini-dialog,
+.load-asset-dialog {
     width: min(90vw, 28rem);
     padding: 1.5rem;
     border: 2px solid var(--brown);
@@ -243,21 +253,25 @@ textarea {
     background: var(--light-green);
 }
 
-.load-mini-dialog::backdrop {
+.load-mini-dialog::backdrop,
+.load-asset-dialog::backdrop {
     background: rgba(49, 91, 63, 0.55);
 }
 
-.load-mini-dialog h2 {
+.load-mini-dialog h2,
+.load-asset-dialog h2 {
     margin-top: 0;
 }
 
-.load-mini-dialog label {
+.load-mini-dialog label,
+.load-asset-dialog label {
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 700;
 }
 
-.load-mini-dialog select {
+.load-mini-dialog select,
+.load-asset-dialog select {
     width: 100%;
     padding: 0.7rem;
     border: 1px solid var(--green);
@@ -267,13 +281,15 @@ textarea {
     font: inherit;
 }
 
-.load-mini-actions {
+.load-mini-actions,
+.load-asset-actions {
     display: flex;
     gap: 0.5rem;
     margin-top: 1rem;
 }
 
-.mini-actions {
+.mini-actions,
+.asset-actions {
     position: fixed;
     z-index: 2;
     right: 1.25rem;
@@ -282,7 +298,8 @@ textarea {
     gap: 0.6rem;
 }
 
-.mini-status {
+.mini-status,
+.asset-status {
     position: fixed;
     z-index: 2;
     bottom: 1.25rem;
@@ -294,24 +311,30 @@ textarea {
     text-shadow: 0 1px 3px var(--green);
 }
 
-.maker-page .mini-status:empty {
+.maker-page .mini-status:empty,
+.maker-page .asset-status:empty {
     display: none;
 }
 
 .maker-page .site-nav,
 .maker-page header,
 .mini-actions,
-.mini-status {
+.asset-actions,
+.mini-status,
+.asset-status {
     pointer-events: none;
 }
 
 .maker-page .site-nav > *,
 .maker-page header button,
-.mini-actions button {
+.maker-page header form,
+.mini-actions button,
+.asset-actions button {
     pointer-events: auto;
 }
 
-.mini-actions button {
+.mini-actions button,
+.asset-actions button {
     padding: 0.85rem 1.25rem;
     border-radius: 1rem;
 }
@@ -345,24 +368,29 @@ textarea {
         left: 0.75rem;
     }
 
-    .mini-actions {
+    .mini-actions,
+    .asset-actions {
         right: 0.75rem;
         bottom: 0.75rem;
     }
 
-    .mini-actions button {
+    .mini-actions button,
+    .asset-actions button {
         padding: 0.65rem 0.9rem;
     }
 
-    .mini-rename {
+    .mini-rename,
+    .asset-rename {
         grid-template-columns: 1fr 1fr;
     }
 
-    .mini-rename input {
+    .mini-rename input,
+    .asset-rename input {
         grid-column: 1 / -1;
     }
 
-    .mini-status {
+    .mini-status,
+    .asset-status {
         bottom: 4rem;
         left: 0.75rem;
         max-width: 80vw;
