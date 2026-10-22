@@ -339,6 +339,11 @@ textarea {
     border-radius: 1rem;
 }
 
+.asset-actions button[aria-pressed="true"] {
+    outline: 2px solid var(--brown);
+    outline-offset: 2px;
+}
+
 .modeller-page .site-nav-greeting {
     margin-left: 0;
 }
@@ -377,6 +382,12 @@ textarea {
     .mini-actions button,
     .asset-actions button {
         padding: 0.65rem 0.9rem;
+    }
+
+    .asset-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        max-width: calc(100vw - 1.5rem);
     }
 
     .mini-rename,

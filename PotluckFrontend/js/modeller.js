@@ -6,6 +6,7 @@ const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.inner
 
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight );
+renderer.autoClear = false;
 renderer.domElement.setAttribute( 'aria-label', '3D asset preview' );
 const controls = new OrbitControls( camera, renderer.domElement );
 controls.enableDamping = true;
@@ -17,7 +18,7 @@ controls.mouseButtons.LEFT = null;
 renderer.setAnimationLoop( animate );
 document.body.appendChild( renderer.domElement );
 
-const geometry = new THREE.BoxGeometry( 1, 1, 1, 24, 24, 24 );
+const geometry = new THREE.SphereGeometry( 1, 24, 24, 24 );
 const material = new THREE.MeshBasicMaterial( { color: 0xdcdcdc } );
 const cube = new THREE.Mesh( geometry, material );
 scene.add( cube );
@@ -34,6 +35,8 @@ const status = document.querySelector( '#asset-status' );
 const loadDialog = document.querySelector( '#load-asset-dialog' );
 const loadForm = document.querySelector( '#load-asset-form' );
 const savedAssetSelect = document.querySelector( '#saved-asset-select' );
+const sculptBrushButton = document.querySelector( '#sculpt-brush' );
+const boreBrushButton = document.querySelector( '#bore-brush' );
 const storageKey = `potluck.assets.${encodeURIComponent( document.body.dataset.userName )}`;
 let assetName = titleButton.textContent.trim();
 let assetId = null;
@@ -158,9 +161,23 @@ loadForm.addEventListener( 'submit', event => {
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
-const brushRadius = 0.55;
-const sculptStrength = 0.01;
+const brushRadius = 0.12;
+const sculptStrength = 0.03;
 let sculpting = false;
+let brushMode = 'sculpt';
+const brushScene = new THREE.Scene();
+const brushIndicator = new THREE.Mesh(
+  new THREE.RingGeometry( brushRadius * 0.88, brushRadius, 48 ),
+  new THREE.MeshBasicMaterial( {
+    color: 0xff8c00,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false,
+  } ),
+);
+brushIndicator.visible = false;
+brushScene.add( brushIndicator );
 
 function getIntersection( event ) {
   const bounds = renderer.domElement.getBoundingClientRect();
@@ -172,6 +189,29 @@ function getIntersection( event ) {
     .find( intersection => intersection.object.isMesh && intersection.object.geometry?.getAttribute( 'position' ) );
 }
 
+function updateBrushIndicator( intersection ) {
+  if ( !intersection?.face ) {
+    brushIndicator.visible = false;
+    return;
+  }
+
+  const mesh = intersection.object;
+  const normalMatrix = new THREE.Matrix3().getNormalMatrix( mesh.matrixWorld );
+  const normal = intersection.face.normal.clone().applyMatrix3( normalMatrix ).normalize();
+  brushIndicator.position.copy( intersection.point ).addScaledVector( normal, 0.01 );
+  brushIndicator.quaternion.setFromUnitVectors( new THREE.Vector3( 0, 0, 1 ), normal );
+  brushIndicator.visible = true;
+}
+
+function setBrushMode( mode ) {
+  brushMode = mode;
+  sculptBrushButton.setAttribute( 'aria-pressed', String( mode === 'sculpt' ) );
+  boreBrushButton.setAttribute( 'aria-pressed', String( mode === 'bore' ) );
+}
+
+sculptBrushButton.addEventListener( 'click', () => setBrushMode( 'sculpt' ) );
+boreBrushButton.addEventListener( 'click', () => setBrushMode( 'bore' ) );
+
 renderer.domElement.style.touchAction = 'none';
 renderer.domElement.style.cursor = 'grab';
 
@@ -179,6 +219,7 @@ renderer.domElement.addEventListener( 'pointerdown', event => {
   if ( event.button !== 0 ) return;
 
   const intersection = getIntersection( event );
+  updateBrushIndicator( intersection );
   if ( !intersection ) return;
 
   sculpting = true;
@@ -188,16 +229,18 @@ renderer.domElement.addEventListener( 'pointerdown', event => {
 } );
 
 renderer.domElement.addEventListener( 'pointermove', event => {
-  if ( !sculpting ) return;
-
   const intersection = getIntersection( event );
+  updateBrushIndicator( intersection );
+  if ( !sculpting ) return;
   if ( !intersection || !intersection.face ) return;
 
   const mesh = intersection.object;
   const position = mesh.geometry.getAttribute( 'position' );
   const brushCenter = mesh.worldToLocal( intersection.point.clone() );
   const normal = intersection.face.normal.clone();
-  const movement = -event.movementY * sculptStrength;
+  const movement = brushMode === 'bore'
+    ? -Math.hypot( event.movementX, event.movementY ) * sculptStrength
+    : -event.movementY * sculptStrength;
 
   if ( movement === 0 ) return;
 
@@ -230,10 +273,15 @@ function stopSculpting( event ) {
 
 renderer.domElement.addEventListener( 'pointerup', stopSculpting );
 renderer.domElement.addEventListener( 'pointercancel', stopSculpting );
+renderer.domElement.addEventListener( 'pointerleave', () => {
+  if ( !sculpting ) brushIndicator.visible = false;
+} );
 
 function animate() {
   controls.update();
+  renderer.clear();
   renderer.render( scene, camera );
+  renderer.render( brushScene, camera );
 }
 
 window.addEventListener( 'resize', () => {
