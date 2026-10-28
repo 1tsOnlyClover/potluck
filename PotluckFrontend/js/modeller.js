@@ -5,6 +5,8 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 
 const renderer = new THREE.WebGLRenderer();
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setSize( window.innerWidth, window.innerHeight );
 renderer.autoClear = false;
 renderer.domElement.setAttribute( 'aria-label', '3D asset preview' );
@@ -18,10 +20,28 @@ controls.mouseButtons.LEFT = null;
 renderer.setAnimationLoop( animate );
 document.body.appendChild( renderer.domElement );
 
+const ambientLight = new THREE.HemisphereLight( 0xffffff, 0x4a4035, 1.1 );
+const keyLight = new THREE.DirectionalLight( 0xffffff, 2 );
+keyLight.position.set( -3, 5, 4 );
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set( 1024, 1024 );
+keyLight.shadow.camera.left = -3;
+keyLight.shadow.camera.right = 3;
+keyLight.shadow.camera.top = 3;
+keyLight.shadow.camera.bottom = -3;
+keyLight.shadow.camera.near = 0.1;
+keyLight.shadow.camera.far = 20;
+keyLight.shadow.bias = -0.0001;
+keyLight.shadow.normalBias = 0.02;
+keyLight.shadow.radius = 3;
+scene.add( ambientLight, keyLight );
+
 const geometry = new THREE.SphereGeometry( 1, 24, 24, 24 );
-const material = new THREE.MeshBasicMaterial( { color: 0xdcdcdc } );
-const cube = new THREE.Mesh( geometry, material );
-scene.add( cube );
+const material = createCavityMaterial( { color: 0xdcdcdc } );
+const model = new THREE.Mesh( geometry, material );
+model.castShadow = true;
+model.receiveShadow = true;
+scene.add( model );
 
 camera.position.z = 5;
 controls.update();
@@ -40,6 +60,55 @@ const boreBrushButton = document.querySelector( '#bore-brush' );
 const storageKey = `potluck.assets.${encodeURIComponent( document.body.dataset.userName )}`;
 let assetName = titleButton.textContent.trim();
 let assetId = null;
+
+function addCavityShading( material ) {
+  material.onBeforeCompile = shader => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <normal_fragment_maps>',
+      `#include <normal_fragment_maps>
+      float cavity = clamp(
+        ( dot( dFdx( normal ), dFdx( vViewPosition ) ) +
+          dot( dFdy( normal ), dFdy( vViewPosition ) ) ) * 1200.0,
+        0.0,
+        0.22
+      );
+      diffuseColor.rgb *= 1.0 - cavity;`,
+    );
+  };
+  material.customProgramCacheKey = () => 'potluck-cavity-shading-v1';
+  material.needsUpdate = true;
+  return material;
+}
+
+function createCavityMaterial( options ) {
+  return addCavityShading( new THREE.MeshStandardMaterial( options ) );
+}
+
+function applyCavityShading( object ) {
+  if ( !object.isMesh ) return;
+
+  const materials = Array.isArray( object.material ) ? object.material : [ object.material ];
+  const shadedMaterials = materials.map( sourceMaterial => {
+    if ( sourceMaterial.isMeshStandardMaterial ) return addCavityShading( sourceMaterial );
+
+    const standardMaterial = createCavityMaterial( {
+      color: sourceMaterial.color,
+      map: sourceMaterial.map,
+      alphaMap: sourceMaterial.alphaMap,
+      side: sourceMaterial.side,
+      vertexColors: sourceMaterial.vertexColors,
+      transparent: sourceMaterial.transparent,
+      opacity: sourceMaterial.opacity,
+      roughness: 0.85,
+    } );
+    sourceMaterial.dispose();
+    return standardMaterial;
+  } );
+
+  object.material = Array.isArray( object.material ) ? shadedMaterials : shadedMaterials[ 0 ];
+  object.castShadow = true;
+  object.receiveShadow = true;
+}
 
 function readSavedAssets() {
   const stored = localStorage.getItem( storageKey );
@@ -144,6 +213,10 @@ loadForm.addEventListener( 'submit', event => {
     }
 
     const loadedScene = new THREE.ObjectLoader().parse( selectedAsset.scene );
+    if ( !loadedScene.children.some( child => child.isLight ) ) {
+      loadedScene.add( ambientLight, keyLight );
+    }
+    loadedScene.traverse( applyCavityShading );
     scene.clear();
     for ( const child of [ ...loadedScene.children ] ) scene.add( child );
 
@@ -161,8 +234,8 @@ loadForm.addEventListener( 'submit', event => {
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
-const brushRadius = 0.12;
-const sculptStrength = 0.03;
+const brushRadius = 0.08;
+const sculptStrength = 0.04;
 let sculpting = false;
 let brushMode = 'sculpt';
 const brushScene = new THREE.Scene();

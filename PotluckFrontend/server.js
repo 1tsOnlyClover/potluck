@@ -4,9 +4,18 @@ import MySQLStoreFactory from 'express-mysql-session';
 import mysql from 'mysql2';
 import bcrypt from 'bcryptjs';
 import { createServer as createViteServer } from 'vite';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-if (!process.env.SESSION_SECRET || !process.env.MYSQL_HOST || !process.env.MYSQL_USER) {
-  throw new Error('Set SESSION_SECRET, MYSQL_HOST, and MYSQL_USER before starting the app.');
+const envFile = fileURLToPath(new URL('.env', import.meta.url));
+if (existsSync(envFile)) {
+  process.loadEnvFile(envFile);
+}
+
+const missingConfig = ['SESSION_SECRET', 'MYSQL_HOST', 'MYSQL_USER']
+  .filter((key) => !process.env[key]);
+if (missingConfig.length) {
+  throw new Error(`Missing ${missingConfig.join(', ')}. Copy .env.example to .env and fill in your local settings.`);
 }
 
 const app = express();
