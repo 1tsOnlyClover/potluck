@@ -25,6 +25,12 @@
       <button id="save-asset" type="button">Save Asset</button>
       <button id="load-asset" type="button">Load Asset</button>
     </div>
+    <section class="brush-settings" aria-label="Brush settings">
+      <label for="brush-size-slider">Brush size <output id="brush-size-display" for="brush-size-slider">0.08</output></label>
+      <input id="brush-size-slider" type="range" min="0.01" max="0.2" step="0.01" value="0.08">
+      <label for="sculpt-strength-slider">Brush strength <output id="sculpt-strength-display" for="sculpt-strength-slider">0.04</output></label>
+      <input id="sculpt-strength-slider" type="range" min="0.01" max="0.1" step="0.01" value="0.04">
+    </section>
     <p id="asset-status" class="asset-status" role="status" aria-live="polite"></p>
     <dialog id="load-asset-dialog" class="load-asset-dialog">
       <form id="load-asset-form">

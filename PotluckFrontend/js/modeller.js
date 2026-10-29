@@ -36,7 +36,7 @@ keyLight.shadow.normalBias = 0.02;
 keyLight.shadow.radius = 3;
 scene.add( ambientLight, keyLight );
 
-const geometry = new THREE.SphereGeometry( 1, 24, 24, 24 );
+const geometry = new THREE.SphereGeometry( 1, 128, 128, 128 );
 const material = createCavityMaterial( { color: 0xdcdcdc } );
 const model = new THREE.Mesh( geometry, material );
 model.castShadow = true;
@@ -57,6 +57,10 @@ const loadForm = document.querySelector( '#load-asset-form' );
 const savedAssetSelect = document.querySelector( '#saved-asset-select' );
 const sculptBrushButton = document.querySelector( '#sculpt-brush' );
 const boreBrushButton = document.querySelector( '#bore-brush' );
+const brushSizeSlider = document.querySelector( '#brush-size-slider' );
+const brushSizeDisplay = document.querySelector( '#brush-size-display' );
+const sculptStrengthSlider = document.querySelector( '#sculpt-strength-slider' );
+const sculptStrengthDisplay = document.querySelector( '#sculpt-strength-display' );
 const storageKey = `potluck.assets.${encodeURIComponent( document.body.dataset.userName )}`;
 let assetName = titleButton.textContent.trim();
 let assetId = null;
@@ -234,9 +238,10 @@ loadForm.addEventListener( 'submit', event => {
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
-const brushRadius = 0.08;
-const sculptStrength = 0.04;
+let brushRadius = Number( brushSizeSlider.value );
+let sculptStrength = Number( sculptStrengthSlider.value );
 let sculpting = false;
+let lastStrokePoint = null;
 let brushMode = 'sculpt';
 const brushScene = new THREE.Scene();
 const brushIndicator = new THREE.Mesh(
@@ -252,14 +257,92 @@ const brushIndicator = new THREE.Mesh(
 brushIndicator.visible = false;
 brushScene.add( brushIndicator );
 
+brushSizeSlider.addEventListener( 'input', () => {
+  brushRadius = Number( brushSizeSlider.value );
+  brushSizeDisplay.value = brushRadius.toFixed( 2 );
+  brushIndicator.geometry.dispose();
+  brushIndicator.geometry = new THREE.RingGeometry( brushRadius * 0.88, brushRadius, 48 );
+} );
+
+sculptStrengthSlider.addEventListener( 'input', () => {
+  sculptStrength = Number( sculptStrengthSlider.value );
+  sculptStrengthDisplay.value = sculptStrength.toFixed( 2 );
+} );
+
 function getIntersection( event ) {
+  return getIntersectionAt( event.clientX, event.clientY );
+}
+
+function getIntersectionAt( clientX, clientY, target = scene ) {
   const bounds = renderer.domElement.getBoundingClientRect();
-  pointer.x = ( ( event.clientX - bounds.left ) / bounds.width ) * 2 - 1;
-  pointer.y = -( ( event.clientY - bounds.top ) / bounds.height ) * 2 + 1;
+  pointer.x = ( ( clientX - bounds.left ) / bounds.width ) * 2 - 1;
+  pointer.y = -( ( clientY - bounds.top ) / bounds.height ) * 2 + 1;
   raycaster.setFromCamera( pointer, camera );
 
-  return raycaster.intersectObjects( scene.children, true )
+  const intersections = target === scene
+    ? raycaster.intersectObjects( scene.children, true )
+    : raycaster.intersectObject( target, true );
+  return intersections
     .find( intersection => intersection.object.isMesh && intersection.object.geometry?.getAttribute( 'position' ) );
+}
+
+function getStrokePoint( intersection, clientX, clientY ) {
+  return {
+    clientX,
+    clientY,
+    mesh: intersection.object,
+    point: intersection.object.worldToLocal( intersection.point.clone() ),
+    normal: intersection.face.normal.clone(),
+  };
+}
+
+function getStrokeMovement( event, intersection ) {
+  const pixelMovement = brushMode === 'bore'
+    ? Math.hypot( event.movementX, event.movementY )
+    : Math.abs( event.movementY );
+  const distanceToCamera = camera.position.distanceTo( intersection.point );
+  const worldUnitsPerPixel = 2 * distanceToCamera
+    * Math.tan( THREE.MathUtils.degToRad( camera.fov / 2 ) )
+    / renderer.domElement.clientHeight;
+  const movement = pixelMovement * worldUnitsPerPixel * sculptStrength;
+  const maxMovementPerEvent = brushRadius * 0.25;
+
+  return Math.min( movement, maxMovementPerEvent )
+    * ( brushMode === 'bore' ? -1 : 1 );
+}
+
+function applyStroke( mesh, samples, movement ) {
+  if ( movement === 0 || !samples.length ) return;
+
+  const position = mesh.geometry.getAttribute( 'position' );
+  const radiusSquared = brushRadius * brushRadius;
+  const vertex = new THREE.Vector3();
+
+  for ( let i = 0; i < position.count; i++ ) {
+    vertex.fromBufferAttribute( position, i );
+    let closestDistanceSquared = radiusSquared;
+    let closestNormal = null;
+
+    for ( const sample of samples ) {
+      const distanceSquared = vertex.distanceToSquared( sample.point );
+      if ( distanceSquared < closestDistanceSquared ) {
+        closestDistanceSquared = distanceSquared;
+        closestNormal = sample.normal;
+      }
+    }
+
+    if ( !closestNormal ) continue;
+
+    const falloff = 1 - Math.sqrt( closestDistanceSquared ) / brushRadius;
+    const smoothFalloff = falloff * falloff * ( 3 - 2 * falloff );
+    const influence = smoothFalloff * movement;
+    vertex.addScaledVector( closestNormal, influence );
+    position.setXYZ( i, vertex.x, vertex.y, vertex.z );
+  }
+
+  position.needsUpdate = true;
+  mesh.geometry.computeVertexNormals();
+  mesh.geometry.computeBoundingSphere();
 }
 
 function updateBrushIndicator( intersection ) {
@@ -291,11 +374,13 @@ renderer.domElement.style.cursor = 'grab';
 renderer.domElement.addEventListener( 'pointerdown', event => {
   if ( event.button !== 0 ) return;
 
+  lastStrokePoint = null;
   const intersection = getIntersection( event );
   updateBrushIndicator( intersection );
   if ( !intersection ) return;
 
   sculpting = true;
+  lastStrokePoint = getStrokePoint( intersection, event.clientX, event.clientY );
   controls.enabled = false;
   renderer.domElement.style.cursor = 'grabbing';
   renderer.domElement.setPointerCapture( event.pointerId );
@@ -305,38 +390,53 @@ renderer.domElement.addEventListener( 'pointermove', event => {
   const intersection = getIntersection( event );
   updateBrushIndicator( intersection );
   if ( !sculpting ) return;
-  if ( !intersection || !intersection.face ) return;
-
-  const mesh = intersection.object;
-  const position = mesh.geometry.getAttribute( 'position' );
-  const brushCenter = mesh.worldToLocal( intersection.point.clone() );
-  const normal = intersection.face.normal.clone();
-  const movement = brushMode === 'bore'
-    ? -Math.hypot( event.movementX, event.movementY ) * sculptStrength
-    : -event.movementY * sculptStrength;
-
-  if ( movement === 0 ) return;
-
-  for ( let i = 0; i < position.count; i++ ) {
-    const vertex = new THREE.Vector3().fromBufferAttribute( position, i );
-    const distance = vertex.distanceTo( brushCenter );
-    if ( distance >= brushRadius ) continue;
-
-    const falloff = 1 - distance / brushRadius;
-    const influence = falloff * falloff * movement;
-    vertex.addScaledVector( normal, influence );
-    position.setXYZ( i, vertex.x, vertex.y, vertex.z );
+  if ( !intersection?.face ) {
+    lastStrokePoint = null;
+    return;
   }
 
-  position.needsUpdate = true;
-  mesh.geometry.computeVertexNormals();
-  mesh.geometry.computeBoundingSphere();
+  const currentStrokePoint = getStrokePoint( intersection, event.clientX, event.clientY );
+  const previousStrokePoint = lastStrokePoint;
+  lastStrokePoint = currentStrokePoint;
+  const movement = getStrokeMovement( event, intersection );
+
+  const mesh = currentStrokePoint.mesh;
+  if ( previousStrokePoint?.mesh !== mesh ) {
+    applyStroke( mesh, [ currentStrokePoint ], movement );
+    return;
+  }
+
+  const distance = previousStrokePoint.point.distanceTo( currentStrokePoint.point );
+  const screenDistance = Math.hypot(
+    event.clientX - previousStrokePoint.clientX,
+    event.clientY - previousStrokePoint.clientY,
+  );
+  const spacing = Math.max( brushRadius * 0.5, 0.001 );
+  const steps = Math.max(
+    1,
+    Math.ceil( distance / spacing ),
+    Math.ceil( screenDistance / 4 ),
+  );
+  const samples = [];
+
+  for ( let step = 0; step <= steps; step++ ) {
+    const amount = step / steps;
+    const sampleX = THREE.MathUtils.lerp( previousStrokePoint.clientX, event.clientX, amount );
+    const sampleY = THREE.MathUtils.lerp( previousStrokePoint.clientY, event.clientY, amount );
+    const sampleIntersection = getIntersectionAt( sampleX, sampleY, mesh );
+    if ( sampleIntersection?.face ) {
+      samples.push( getStrokePoint( sampleIntersection, sampleX, sampleY ) );
+    }
+  }
+
+  applyStroke( mesh, samples, movement );
 } );
 
 function stopSculpting( event ) {
   if ( !sculpting ) return;
 
   sculpting = false;
+  lastStrokePoint = null;
   controls.enabled = true;
   renderer.domElement.style.cursor = 'grab';
   if ( renderer.domElement.hasPointerCapture( event.pointerId ) ) {
