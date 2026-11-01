@@ -36,7 +36,7 @@ keyLight.shadow.normalBias = 0.02;
 keyLight.shadow.radius = 3;
 scene.add( ambientLight, keyLight );
 
-const geometry = new THREE.SphereGeometry( 1, 128, 128, 128 );
+const geometry = new THREE.BufferGeometry().copy( new THREE.SphereGeometry( 1, 128, 128 ) );
 const material = createCavityMaterial( { color: 0xdcdcdc } );
 const model = new THREE.Mesh( geometry, material );
 model.castShadow = true;
@@ -61,9 +61,52 @@ const brushSizeSlider = document.querySelector( '#brush-size-slider' );
 const brushSizeDisplay = document.querySelector( '#brush-size-display' );
 const sculptStrengthSlider = document.querySelector( '#sculpt-strength-slider' );
 const sculptStrengthDisplay = document.querySelector( '#sculpt-strength-display' );
-const storageKey = `potluck.assets.${encodeURIComponent( document.body.dataset.userName )}`;
 let assetName = titleButton.textContent.trim();
 let assetId = null;
+let thumbnailRenderer;
+const thumbnailSize = 256;
+
+function createAssetThumbnail() {
+  const previewScene = new THREE.Scene();
+  previewScene.background = new THREE.Color( 0xf7f8f2 );
+  const previewKeyLight = new THREE.DirectionalLight( 0xffffff, 2 );
+  previewKeyLight.position.set( -3, 5, 4 );
+  previewScene.add( new THREE.HemisphereLight( 0xffffff, 0x4a4035, 1.5 ), previewKeyLight );
+
+  const previewModel = new THREE.Group();
+  for ( const child of scene.children ) {
+    if ( child.isLight || child.isCamera ) continue;
+    previewModel.add( child.clone( true ) );
+  }
+  previewModel.updateMatrixWorld( true );
+
+  const bounds = new THREE.Box3().setFromObject( previewModel );
+  if ( bounds.isEmpty() ) throw new Error( 'There is no model to create a thumbnail for.' );
+
+  const center = bounds.getCenter( new THREE.Vector3() );
+  const size = bounds.getSize( new THREE.Vector3() );
+  const maxDimension = Math.max( size.x, size.y, size.z );
+  if ( !Number.isFinite( maxDimension ) || maxDimension <= 0 ) {
+    throw new Error( 'Unable to determine the model size for its thumbnail.' );
+  }
+  previewModel.position.sub( center );
+  previewScene.add( previewModel );
+
+  const fieldOfView = 35;
+  const distance = ( maxDimension * 0.5 / Math.tan( THREE.MathUtils.degToRad( fieldOfView * 0.5 ) ) ) * 1.35;
+  const previewCamera = new THREE.PerspectiveCamera( fieldOfView, 1, Math.max( distance / 1000, 0.01 ), distance * 10 );
+  previewCamera.position.set( distance * 0.7, distance * 0.55, distance );
+  previewCamera.lookAt( 0, 0, 0 );
+
+  if ( !thumbnailRenderer ) {
+    thumbnailRenderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+    thumbnailRenderer.setSize( thumbnailSize, thumbnailSize );
+    thumbnailRenderer.outputColorSpace = THREE.SRGBColorSpace;
+  }
+
+  thumbnailRenderer.render( previewScene, previewCamera );
+  return thumbnailRenderer.domElement.toDataURL( 'image/jpeg', 0.82 );
+}
 
 function addCavityShading( material ) {
   material.onBeforeCompile = shader => {
@@ -114,15 +157,24 @@ function applyCavityShading( object ) {
   object.receiveShadow = true;
 }
 
-function readSavedAssets() {
-  const stored = localStorage.getItem( storageKey );
-  if ( !stored ) return [];
-
-  const assets = JSON.parse( stored );
+async function readSavedAssets() {
+  const response = await fetch( '/api/assets' );
+  const assets = await readJsonResponse( response );
+  if ( !response.ok ) throw new Error( assets.error || 'Unable to load saved assets.' );
   if ( !Array.isArray( assets ) || assets.some( asset => !asset.id || !asset.name || !asset.scene ) ) {
     throw new Error( 'Saved assets data has an invalid format.' );
   }
   return assets;
+}
+
+async function readJsonResponse( response ) {
+  const contentType = response.headers.get( 'content-type' ) || '';
+  if ( !contentType.includes( 'application/json' ) ) {
+    const body = await response.text();
+    console.error( 'Asset API returned a non-JSON response:', response.status, body.slice( 0, 500 ) );
+    throw new Error( 'The asset API returned a page instead of data. Restart the app and try again.' );
+  }
+  return response.json();
 }
 
 function setStatus( message ) {
@@ -158,32 +210,34 @@ renameForm.addEventListener( 'submit', event => {
   setStatus( 'Asset renamed. Save to keep the new name.' );
 } );
 
-saveButton.addEventListener( 'click', () => {
+saveButton.addEventListener( 'click', async () => {
+  saveButton.disabled = true;
   try {
-    const assets = readSavedAssets();
-    assetId ||= globalThis.crypto.randomUUID();
-
-    const savedAsset = {
-      id: assetId,
+    const asset = {
       name: assetName,
       scene: scene.toJSON(),
-      updatedAt: new Date().toISOString(),
+      thumbnail: createAssetThumbnail(),
     };
-    const existingIndex = assets.findIndex( asset => asset.id === assetId );
-    if ( existingIndex === -1 ) assets.push( savedAsset );
-    else assets[ existingIndex ] = savedAsset;
-
-    localStorage.setItem( storageKey, JSON.stringify( assets ) );
-    setStatus( `"${assetName}" saved in this browser.` );
+    const response = await fetch( assetId ? `/api/assets/${encodeURIComponent( assetId )}` : '/api/assets', {
+      method: assetId ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify( asset ),
+    } );
+    const savedAsset = await readJsonResponse( response );
+    if ( !response.ok ) throw new Error( savedAsset.error || 'Unable to save asset.' );
+    assetId = savedAsset.id;
+    setStatus( `"${assetName}" saved to your account.` );
   } catch ( error ) {
     console.error( 'Unable to save asset:', error );
-    setStatus( 'Unable to save this asset in your browser storage.' );
+    setStatus( error.message || 'Unable to save this asset right now.' );
+  } finally {
+    saveButton.disabled = false;
   }
 } );
 
-loadButton.addEventListener( 'click', () => {
+loadButton.addEventListener( 'click', async () => {
   try {
-    const assets = readSavedAssets();
+    const assets = await readSavedAssets();
     if ( !assets.length ) {
       setStatus( 'No saved assets yet. Save an asset first.' );
       return;
@@ -198,7 +252,7 @@ loadButton.addEventListener( 'click', () => {
     loadDialog.showModal();
   } catch ( error ) {
     console.error( 'Unable to read saved assets:', error );
-    setStatus( 'Unable to read saved assets from this browser.' );
+    setStatus( error.message || 'Unable to read saved assets right now.' );
   }
 } );
 
@@ -206,10 +260,11 @@ document.querySelector( '#cancel-load' ).addEventListener( 'click', () => {
   loadDialog.close();
 } );
 
-loadForm.addEventListener( 'submit', event => {
+loadForm.addEventListener( 'submit', async event => {
   event.preventDefault();
   try {
-    const selectedAsset = readSavedAssets().find( asset => asset.id === savedAssetSelect.value );
+    const assets = await readSavedAssets();
+    const selectedAsset = assets.find( asset => asset.id === savedAssetSelect.value );
     if ( !selectedAsset ) {
       loadDialog.close();
       setStatus( 'That saved asset could not be found.' );

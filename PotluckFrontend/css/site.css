@@ -341,6 +341,78 @@ textarea {
     gap: 0.6rem;
 }
 
+.asset-gallery {
+    position: fixed;
+    z-index: 3;
+    top: 5.25rem;
+    right: 1rem;
+    display: flex;
+    width: min(18rem, 32vw);
+    max-height: calc(100vh - 11rem);
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 1rem;
+    overflow: auto;
+    border: 1px solid rgba(49, 91, 63, 0.2);
+    border-radius: 1rem;
+    color: var(--green);
+    background: rgba(232, 239, 223, 0.96);
+    box-shadow: 0 0.5rem 1.5rem var(--green-shadow);
+}
+
+.asset-gallery h2,
+.asset-gallery p {
+    margin: 0;
+}
+
+.gallery-status,
+.gallery-hint {
+    font-size: 0.9rem;
+}
+
+.gallery-items {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.gallery-item {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid rgba(49, 91, 63, 0.24);
+    border-radius: 0.75rem;
+    color: var(--green);
+    background: #f7f8f2;
+    text-align: left;
+    cursor: grab;
+}
+
+.gallery-item img,
+.gallery-item-preview {
+    display: grid;
+    width: 100%;
+    aspect-ratio: 1;
+    place-items: center;
+    object-fit: contain;
+    color: rgba(49, 91, 63, 0.7);
+    background: #e8efdf;
+}
+
+.gallery-item-name {
+    display: block;
+    padding: 0.55rem 0.7rem;
+    overflow-wrap: anywhere;
+    font-weight: 700;
+}
+
+.gallery-item:active {
+    cursor: grabbing;
+}
+
+.maker-page .mini-actions {
+    right: calc(min(18rem, 32vw) + 1.75rem);
+}
+
 .mini-status,
 .asset-status {
     position: fixed;
@@ -426,6 +498,18 @@ textarea {
     .asset-actions {
         right: 0.75rem;
         bottom: 0.75rem;
+    }
+
+    .asset-gallery {
+        top: 5rem;
+        right: 0.5rem;
+        width: min(15rem, 42vw);
+        max-height: calc(100vh - 10.5rem);
+        padding: 0.7rem;
+    }
+
+    .maker-page .mini-actions {
+        right: 0.75rem;
     }
 
     .mini-actions button,
