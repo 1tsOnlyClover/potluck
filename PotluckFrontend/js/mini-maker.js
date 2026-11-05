@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
@@ -12,6 +13,15 @@ controls.enableDamping = true;
 controls.enableZoom = true;
 controls.minDistance = 2;
 controls.maxDistance = 20;
+const baseThickness = 0.14;
+const gridSize = 0.25;
+const transformControls = new TransformControls( camera, renderer.domElement );
+const transformHelper = transformControls.getHelper();
+scene.add( transformHelper );
+transformControls.setTranslationSnap( gridSize );
+transformControls.addEventListener( 'dragging-changed', event => {
+  controls.enabled = !event.value;
+} );
 renderer.setAnimationLoop( animate );
 document.body.appendChild( renderer.domElement );
 
@@ -20,17 +30,30 @@ const keyLight = new THREE.DirectionalLight( 0xffffff, 2 );
 keyLight.position.set( -3, 5, 4 );
 scene.add( ambientLight, keyLight );
 
-const geometry = new THREE.DodecahedronGeometry( 1, 0 );
-const material = new THREE.MeshStandardMaterial( { color: 0x315b3f, roughness: 0.8 } );
-const cube = new THREE.Mesh( geometry, material );
-scene.add( cube );
+const gridHelper = new THREE.GridHelper( 2, 8, 0x79583c, 0x315b3f );
+gridHelper.position.y = baseThickness + 0.005;
+scene.add( gridHelper );
 
-camera.position.z = 5;
+const geometry = new THREE.CylinderGeometry( 1, 1, baseThickness, 64 );
+const material = new THREE.MeshStandardMaterial( { color: 0x315b3f, roughness: 0.8 } );
+const base = new THREE.Mesh( geometry, material );
+base.position.y = baseThickness / 2;
+scene.add( base );
+
+camera.position.set( 4, 4, 6 );
+controls.target.set( 0, 0.5, 0 );
 controls.update();
 
 const titleButton = document.querySelector( '#mini-title' );
 const renameForm = document.querySelector( '#rename-form' );
 const nameInput = document.querySelector( '#mini-name' );
+const gridSnapToggle = document.querySelector( '#grid-snap-toggle' );
+const objectTools = document.querySelector( '#object-tools' );
+const selectedModelName = document.querySelector( '#selected-model-name' );
+const moveModelButton = document.querySelector( '#move-model' );
+const scaleModelButton = document.querySelector( '#scale-model' );
+const modelScaleSlider = document.querySelector( '#model-scale' );
+const modelScaleValue = document.querySelector( '#model-scale-value' );
 const saveButton = document.querySelector( '#save-mini' );
 const loadButton = document.querySelector( '#load-mini' );
 const status = document.querySelector( '#mini-status' );
@@ -44,6 +67,10 @@ let miniName = titleButton.textContent.trim();
 let miniId = null;
 let savedAssets = [];
 let thumbnailRenderer;
+let gridSnapEnabled = true;
+let selectedModel = null;
+let selectedModelBaseScale = null;
+let pointerDown = null;
 const thumbnailSize = 256;
 
 function readSavedMinis() {
@@ -198,18 +225,25 @@ function addAssetToScene( asset, clientX = window.innerWidth / 2, clientY = wind
     } );
     if ( !hasModel ) throw new Error( 'This asset does not contain a 3D model.' );
 
+    modelGroup.userData.galleryAssetName = asset.name;
     modelGroup.updateMatrixWorld( true );
     const bounds = new THREE.Box3().setFromObject( modelGroup );
     const center = bounds.getCenter( new THREE.Vector3() );
-    modelGroup.position.sub( center );
+    modelGroup.position.set( -center.x, baseThickness - bounds.min.y, -center.z );
 
     const canvasBounds = renderer.domElement.getBoundingClientRect();
     pointer.x = ( ( clientX - canvasBounds.left ) / canvasBounds.width ) * 2 - 1;
     pointer.y = -( ( clientY - canvasBounds.top ) / canvasBounds.height ) * 2 + 1;
     raycaster.setFromCamera( pointer, camera );
-    const dropPlane = new THREE.Plane( new THREE.Vector3( 0, 0, 1 ), 0 );
+    const dropPlane = new THREE.Plane( new THREE.Vector3( 0, 1, 0 ), -baseThickness );
     const dropPoint = raycaster.ray.intersectPlane( dropPlane, new THREE.Vector3() );
-    if ( dropPoint ) modelGroup.position.add( dropPoint );
+    if ( dropPoint ) {
+      if ( gridSnapEnabled ) {
+        dropPoint.x = Math.round( dropPoint.x / gridSize ) * gridSize;
+        dropPoint.z = Math.round( dropPoint.z / gridSize ) * gridSize;
+      }
+      modelGroup.position.add( dropPoint );
+    }
 
     scene.add( modelGroup );
     setStatus( `"${asset.name}" added to the scene.` );
@@ -221,6 +255,89 @@ function addAssetToScene( asset, clientX = window.innerWidth / 2, clientY = wind
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
+function setSelectedModel( model ) {
+  selectedModel = model;
+  selectedModelBaseScale = model ? model.scale.clone() : null;
+  if ( !model ) {
+    transformControls.detach();
+    objectTools.hidden = true;
+    return;
+  }
+
+  transformControls.attach( model );
+  selectedModelName.textContent = model.userData.galleryAssetName || 'Selected model';
+  modelScaleSlider.value = '100';
+  modelScaleValue.value = '100%';
+  modelScaleValue.textContent = '100%';
+  objectTools.hidden = false;
+}
+
+function setTransformMode( mode ) {
+  transformControls.setMode( mode );
+  moveModelButton.setAttribute( 'aria-pressed', String( mode === 'translate' ) );
+  scaleModelButton.setAttribute( 'aria-pressed', String( mode === 'scale' ) );
+}
+
+transformControls.addEventListener( 'objectChange', () => {
+  if ( !selectedModel || !selectedModelBaseScale ) return;
+  const scaleFactor = Math.cbrt(
+    Math.abs(
+      selectedModel.scale.x / selectedModelBaseScale.x
+      * selectedModel.scale.y / selectedModelBaseScale.y
+      * selectedModel.scale.z / selectedModelBaseScale.z,
+    ),
+  );
+  if ( !Number.isFinite( scaleFactor ) ) return;
+
+  const percentage = THREE.MathUtils.clamp( Math.round( scaleFactor * 20 ) * 5, 25, 300 );
+  modelScaleSlider.value = String( percentage );
+  modelScaleValue.value = `${percentage}%`;
+  modelScaleValue.textContent = `${percentage}%`;
+} );
+
+renderer.domElement.addEventListener( 'pointerdown', event => {
+  pointerDown = {
+    x: event.clientX,
+    y: event.clientY,
+    overTransformHandle: transformControls.axis !== null,
+  };
+} );
+
+renderer.domElement.addEventListener( 'pointerup', event => {
+  if ( !pointerDown ) return;
+  const movement = Math.hypot( event.clientX - pointerDown.x, event.clientY - pointerDown.y );
+  const wasTransformInteraction = pointerDown.overTransformHandle || transformControls.dragging;
+  pointerDown = null;
+  if ( movement > 4 || wasTransformInteraction ) return;
+
+  const canvasBounds = renderer.domElement.getBoundingClientRect();
+  pointer.x = ( ( event.clientX - canvasBounds.left ) / canvasBounds.width ) * 2 - 1;
+  pointer.y = -( ( event.clientY - canvasBounds.top ) / canvasBounds.height ) * 2 + 1;
+  raycaster.setFromCamera( pointer, camera );
+  const models = scene.children.filter( child => child.userData.galleryAssetName );
+  const hit = raycaster.intersectObjects( models, true )[ 0 ];
+  const selectedRoot = hit && models.find( model => model.getObjectById( hit.object.id ) );
+  setSelectedModel( selectedRoot || null );
+} );
+
+moveModelButton.addEventListener( 'click', () => setTransformMode( 'translate' ) );
+scaleModelButton.addEventListener( 'click', () => setTransformMode( 'scale' ) );
+modelScaleSlider.addEventListener( 'input', () => {
+  if ( !selectedModel || !selectedModelBaseScale ) return;
+  const multiplier = Number( modelScaleSlider.value ) / 100;
+  selectedModel.scale.copy( selectedModelBaseScale ).multiplyScalar( multiplier );
+  modelScaleValue.value = `${modelScaleSlider.value}%`;
+  modelScaleValue.textContent = `${modelScaleSlider.value}%`;
+} );
+
+gridSnapToggle.addEventListener( 'click', () => {
+  gridSnapEnabled = !gridSnapEnabled;
+  gridHelper.visible = gridSnapEnabled;
+  transformControls.setTranslationSnap( gridSnapEnabled ? gridSize : null );
+  gridSnapToggle.setAttribute( 'aria-pressed', String( gridSnapEnabled ) );
+  gridSnapToggle.textContent = `Grid snap: ${gridSnapEnabled ? 'On' : 'Off'}`;
+} );
+
 renderer.domElement.addEventListener( 'dragover', event => {
   event.preventDefault();
   event.dataTransfer.dropEffect = 'copy';
@@ -269,10 +386,20 @@ saveButton.addEventListener( 'click', () => {
     const minis = readSavedMinis();
     miniId ||= globalThis.crypto.randomUUID();
 
+    scene.remove( gridHelper );
+    scene.remove( transformHelper );
+    let savedScene;
+    try {
+      savedScene = scene.toJSON();
+    } finally {
+      scene.add( gridHelper );
+      scene.add( transformHelper );
+    }
+
     const savedMini = {
       id: miniId,
       name: miniName,
-      scene: scene.toJSON(),
+      scene: savedScene,
       updatedAt: new Date().toISOString(),
     };
     const existingIndex = minis.findIndex( mini => mini.id === miniId );
@@ -324,10 +451,17 @@ loadForm.addEventListener( 'submit', event => {
 
     const loadedScene = new THREE.ObjectLoader().parse( selectedMini.scene );
     scene.clear();
+    selectedModel = null;
+    selectedModelBaseScale = null;
+    objectTools.hidden = true;
+    transformControls.detach();
     if ( !loadedScene.children.some( child => child.isLight ) ) {
       loadedScene.add( ambientLight, keyLight );
     }
     for ( const child of [ ...loadedScene.children ] ) scene.add( child );
+    scene.add( gridHelper );
+    scene.add( transformHelper );
+    gridHelper.visible = gridSnapEnabled;
 
     miniId = selectedMini.id;
     miniName = selectedMini.name;

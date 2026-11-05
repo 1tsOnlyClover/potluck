@@ -18,9 +18,19 @@
       </form>
     </header>
     <div class="mini-actions" aria-label="Mini actions">
+      <button id="grid-snap-toggle" type="button" aria-pressed="true">Grid snap: On</button>
       <button id="save-mini" type="button">Save Mini</button>
       <button id="load-mini" type="button">Load Mini</button>
     </div>
+    <section id="object-tools" class="object-tools" aria-label="Selected model tools" hidden>
+      <h2 id="selected-model-name">Selected model</h2>
+      <div class="object-tool-modes" role="group" aria-label="Transform mode">
+        <button id="move-model" type="button" aria-pressed="true">Move</button>
+        <button id="scale-model" type="button" aria-pressed="false">Scale</button>
+      </div>
+      <label for="model-scale">Scale <output id="model-scale-value" for="model-scale">100%</output></label>
+      <input id="model-scale" type="range" min="25" max="300" step="5" value="100">
+    </section>
     <p id="mini-status" class="mini-status" role="status" aria-live="polite"></p>
     <dialog id="load-mini-dialog" class="load-mini-dialog">
       <form id="load-mini-form">

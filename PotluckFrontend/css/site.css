@@ -413,6 +413,70 @@ textarea {
     right: calc(min(18rem, 32vw) + 1.75rem);
 }
 
+.object-tools {
+    position: fixed;
+    z-index: 3;
+    top: 10rem;
+    left: 1.25rem;
+    display: grid;
+    gap: 0.65rem;
+    width: min(18rem, calc(100vw - 2.5rem));
+    padding: 1rem;
+    border: 1px solid rgba(49, 91, 63, 0.2);
+    border-radius: 1rem;
+    color: var(--green);
+    background: rgba(232, 239, 223, 0.96);
+    box-shadow: 0 0.5rem 1.5rem var(--green-shadow);
+    pointer-events: auto;
+}
+
+.object-tools[hidden] {
+    display: none;
+}
+
+.object-tools h2 {
+    margin: 0;
+    overflow: hidden;
+    font-size: 1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.object-tool-modes {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.object-tool-modes button {
+    flex: 1;
+    padding: 0.55rem 0.8rem;
+}
+
+.object-tools button[aria-pressed="true"] {
+    outline: 2px solid var(--brown);
+    outline-offset: 2px;
+}
+
+.object-tools label {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 700;
+}
+
+.object-tools output {
+    font-variant-numeric: tabular-nums;
+}
+
+.object-tools input[type="range"] {
+    width: 100%;
+    height: 1.25rem;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--green);
+    background: transparent;
+    cursor: pointer;
+}
+
 .mini-status,
 .asset-status {
     position: fixed;
@@ -510,6 +574,12 @@ textarea {
 
     .maker-page .mini-actions {
         right: 0.75rem;
+    }
+
+    .object-tools {
+        top: 9.5rem;
+        left: 0.75rem;
+        width: min(18rem, calc(100vw - 1.5rem));
     }
 
     .mini-actions button,
