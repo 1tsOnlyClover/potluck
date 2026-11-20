@@ -16,12 +16,16 @@ CREATE TABLE IF NOT EXISTS assets (
     name VARCHAR(60) NOT NULL,
     scene TEXT NOT NULL,
     thumbnail TEXT,
+    is_public BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_assets_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT FALSE;
+
 CREATE INDEX IF NOT EXISTS idx_assets_user_updated ON assets (user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_assets_public_updated ON assets (updated_at DESC) WHERE is_public = TRUE;
 
 CREATE OR REPLACE FUNCTION set_asset_updated_at()
 RETURNS TRIGGER

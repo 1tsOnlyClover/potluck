@@ -1,10 +1,11 @@
 import express from 'express';
 import session from 'express-session';
 import pg from 'pg';
-import AWS from 'aws-sdk';
+import { Signer } from '@aws-sdk/rds-signer';
 import bcrypt from 'bcryptjs';
 import { createServer as createViteServer } from 'vite';
 import { existsSync, readFileSync } from 'node:fs';
+import { rootCertificates } from 'node:tls';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { PostgresSessionStore } from './postgres-session-store.js';
@@ -32,8 +33,7 @@ if (!Number.isInteger(dbPort) || dbPort < 1 || dbPort > 65535) {
   throw new Error('DB_PORT must be an integer between 1 and 65535.');
 }
 
-AWS.config.update({ region: process.env.AWS_REGION });
-const signer = new AWS.RDS.Signer({
+const signer = new Signer({
   region: process.env.AWS_REGION,
   hostname: process.env.DB_HOST,
   port: dbPort,
@@ -47,14 +47,12 @@ const db = new pg.Pool({
   port: dbPort,
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
-  password: () => new Promise((resolve, reject) => {
-    signer.getAuthToken({}, (error, token) => {
-      if (error) reject(error);
-      else resolve(token);
-    });
-  }),
+  password: () => signer.getAuthToken(),
   ssl: {
-    ca: readFileSync(process.env.DB_SSL_CA),
+    ca: [
+      ...rootCertificates,
+      readFileSync(process.env.DB_SSL_CA, 'utf8'),
+    ],
     rejectUnauthorized: true,
   },
   max: 10,
@@ -139,13 +137,51 @@ function serializeAssetScene(scene) {
 app.get('/api/assets', requireApiLogin, async (req, res) => {
   try {
     const { rows: assets } = await db.query(
-      'SELECT id, name, scene, thumbnail, updated_at AS "updatedAt" FROM assets WHERE user_id = $1 ORDER BY updated_at DESC',
+      'SELECT id, name, scene, thumbnail, is_public AS "isPublic", updated_at AS "updatedAt" FROM assets WHERE user_id = $1 ORDER BY updated_at DESC',
       [req.session.userId],
     );
     res.json(assets.map((asset) => ({ ...asset, scene: JSON.parse(asset.scene) })));
   } catch (error) {
     console.error('Unable to load assets:', error);
     res.status(500).json({ error: 'Unable to load your assets right now.' });
+  }
+});
+
+app.get('/api/community-assets', requireApiLogin, async (req, res) => {
+  try {
+    const { rows: assets } = await db.query(
+      `SELECT assets.id, assets.name, assets.thumbnail,
+              users.name AS "sharedBy", assets.updated_at AS "updatedAt"
+       FROM assets
+       JOIN users ON users.id = assets.user_id
+       WHERE assets.is_public = TRUE
+       ORDER BY assets.updated_at DESC
+       LIMIT 100`,
+    );
+    res.json(assets.map((asset) => ({ ...asset, scene: JSON.parse(asset.scene) })));
+  } catch (error) {
+    console.error('Unable to load community assets:', error);
+    res.status(500).json({ error: 'Unable to load the community gallery right now.' });
+  }
+});
+
+app.get('/api/community-assets/:id', requireApiLogin, async (req, res) => {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(req.params.id)) {
+    return res.status(400).json({ error: 'The asset ID is invalid.' });
+  }
+
+  try {
+    const { rows: [asset] } = await db.query(
+      'SELECT id, name, scene FROM assets WHERE id = $1 AND is_public = TRUE',
+      [req.params.id],
+    );
+    if (!asset) {
+      return res.status(404).json({ error: 'That community asset is no longer available.' });
+    }
+    res.json({ ...asset, scene: JSON.parse(asset.scene) });
+  } catch (error) {
+    console.error('Unable to load community asset:', error);
+    res.status(500).json({ error: 'Unable to load that community asset right now.' });
   }
 });
 
@@ -167,6 +203,27 @@ app.post('/api/assets', requireApiLogin, async (req, res) => {
   } catch (error) {
     console.error('Unable to create asset:', error);
     res.status(500).json({ error: 'Unable to save this asset right now.' });
+  }
+});
+
+app.put('/api/assets/:id/share', requireApiLogin, async (req, res) => {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(req.params.id)
+    || typeof req.body?.isPublic !== 'boolean') {
+    return res.status(400).json({ error: 'The asset ID or sharing setting is invalid.' });
+  }
+
+  try {
+    const { rows: [asset] } = await db.query(
+      'UPDATE assets SET is_public = $1 WHERE id = $2 AND user_id = $3 RETURNING id, is_public AS "isPublic"',
+      [req.body.isPublic, req.params.id, req.session.userId],
+    );
+    if (!asset) {
+      return res.status(404).json({ error: 'That asset could not be found.' });
+    }
+    res.json(asset);
+  } catch (error) {
+    console.error('Unable to update asset sharing:', error);
+    res.status(500).json({ error: 'Unable to update asset sharing right now.' });
   }
 });
 
@@ -336,6 +393,7 @@ try {
   if (missingTables.length) {
     throw new Error(`Missing database tables: ${missingTables.join(', ')}. Apply schema.sql before starting the app.`);
   }
+  await db.query('SELECT is_public FROM assets LIMIT 0');
   const sessionCleanup = setInterval(() => {
     db.query('DELETE FROM user_sessions WHERE expire <= NOW()')
       .catch((error) => console.error('Unable to remove expired sessions:', error));

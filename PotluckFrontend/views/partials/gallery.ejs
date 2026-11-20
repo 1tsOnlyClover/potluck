@@ -1,5 +1,10 @@
 <aside class="asset-gallery" aria-label="Asset gallery">
-  <h2>Gallery</h2>
+  <h2>Asset Gallery</h2>
+  <p class="gallery-hint">Publish your assets for everyone to use. Add any gallery asset to your mini.</p>
+  <div id="gallery-tabs" class="gallery-tabs" role="tablist" aria-label="Asset gallery">
+    <button id="my-gallery-tab" class="gallery-tab" type="button" role="tab" tabindex="0" aria-controls="gallery-items" aria-selected="true">My Assets</button>
+    <button id="community-gallery-tab" class="gallery-tab" type="button" role="tab" tabindex="-1" aria-controls="gallery-items" aria-selected="false">Community</button>
+  </div>
   <p id="gallery-status" class="gallery-status" role="status" aria-live="polite">Loading saved assets...</p>
-  <div id="gallery-items" class="gallery-items"></div>
+  <div id="gallery-items" class="gallery-items" role="tabpanel" aria-labelledby="my-gallery-tab"></div>
 </aside>

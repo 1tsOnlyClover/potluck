@@ -26,9 +26,13 @@
    `arn:aws:rds-db:<region>:<account-id>:dbuser:<cluster-resource-id>/<database-username>`.
 4. Copy `.env.example` to `.env`. Set the Aurora endpoint, database, IAM
    database username, AWS region, and the path to the AWS RDS CA bundle.
-   The AWS SDK uses the standard AWS credential provider chain; for local
-   development, authenticate using an AWS profile (for example, AWS SSO).
-   Never put AWS access keys or database passwords in `.env`.
+   The AWS SDK uses the standard AWS credential provider chain. For local
+   development, install AWS CLI v2, configure an IAM profile with
+   `aws configure --profile potluck`, verify it with
+   `aws sts get-caller-identity --profile potluck`, and set
+   `AWS_PROFILE=potluck` in `.env`. The IAM user needs `rds-db:connect` for
+   this cluster resource ID and database user. Never put AWS access keys or
+   database passwords in `.env`.
 5. Apply `schema.sql` to the target database using a migration/admin role
    (`DB_MIGRATION_USER`). From PowerShell, with AWS CLI, `psql`, and the
    environment values configured:
@@ -57,3 +61,18 @@ Asset thumbnails are rendered in the browser each time an asset is saved and
 stored with that asset in PostgreSQL. The older PHP files under `js/` are not
 used by the Express server and still connect to MySQL; migrate them separately
 if they are deployed or invoked.
+
+## Community asset gallery
+
+On the mini maker page, the Asset Gallery has **My Assets** and **Community**
+tabs. Use **Publish to community** on one of your saved assets to make it
+available to all signed-in users; use **Remove from community** to unpublish
+it. Published assets appear in the Community tab, where clicking or dragging
+one into the canvas adds a copy to the current mini. Publishing is explicit,
+and only the asset owner can change its sharing setting. The gallery currently
+shows the 100 most recently updated published assets. Asset scenes load only
+when selected, so browsing the gallery does not download every 3D model.
+
+Apply the updated `schema.sql` to an existing PostgreSQL database before
+restarting the app; it adds the `is_public` column and its index without
+deleting existing assets. Existing assets remain private by default.

@@ -62,6 +62,9 @@ const loadForm = document.querySelector( '#load-mini-form' );
 const savedMiniSelect = document.querySelector( '#saved-mini-select' );
 const galleryStatus = document.querySelector( '#gallery-status' );
 const galleryItems = document.querySelector( '#gallery-items' );
+const galleryTabs = document.querySelector( '#gallery-tabs' );
+const myGalleryTab = document.querySelector( '#my-gallery-tab' );
+const communityGalleryTab = document.querySelector( '#community-gallery-tab' );
 const storageKey = `potluck.minis.${encodeURIComponent( document.body.dataset.userName )}`;
 let miniName = titleButton.textContent.trim();
 let miniId = null;
@@ -71,6 +74,7 @@ let gridSnapEnabled = true;
 let selectedModel = null;
 let selectedModelBaseScale = null;
 let pointerDown = null;
+let activeGalleryMode = 'mine';
 const thumbnailSize = 256;
 
 function readSavedMinis() {
@@ -92,57 +96,138 @@ function setGalleryStatus( message ) {
   galleryStatus.textContent = message;
 }
 
-async function loadGallery() {
+function createGalleryCard( asset, isCommunityAsset ) {
+  const item = document.createElement( 'article' );
+  item.className = 'gallery-item';
+
+  const addButton = document.createElement( 'button' );
+  addButton.className = 'gallery-item-add';
+  addButton.type = 'button';
+  addButton.draggable = true;
+  addButton.setAttribute( 'aria-label', `Add ${asset.name} to the mini` );
+  let thumbnail = asset.thumbnail;
+  if ( !thumbnail ) {
+    try {
+      thumbnail = createAssetThumbnail( asset.scene );
+    } catch ( error ) {
+      console.error( `Unable to create a preview for "${asset.name}":`, error );
+    }
+  }
+
+  if ( thumbnail ) {
+    const preview = document.createElement( 'img' );
+    preview.src = thumbnail;
+    preview.alt = `${asset.name} preview`;
+    preview.loading = 'lazy';
+    addButton.append( preview );
+  } else {
+    const placeholder = document.createElement( 'span' );
+    placeholder.className = 'gallery-item-preview';
+    placeholder.textContent = 'Preview unavailable';
+    addButton.append( placeholder );
+  }
+
+  const name = document.createElement( 'span' );
+  name.className = 'gallery-item-name';
+  name.textContent = asset.name;
+  addButton.append( name );
+  addButton.addEventListener( 'dragstart', event => {
+    event.dataTransfer.setData( 'text/plain', asset.id );
+    event.dataTransfer.effectAllowed = 'copy';
+  } );
+  addButton.addEventListener( 'click', () => {
+    if ( isCommunityAsset ) addCommunityAssetToMini( asset.id );
+    else addAssetToScene( asset );
+  } );
+  item.append( addButton );
+
+  if ( isCommunityAsset ) {
+    const author = document.createElement( 'p' );
+    author.className = 'gallery-item-author';
+    author.textContent = `Shared by ${asset.sharedBy}`;
+    item.append( author );
+  } else {
+    const shareButton = document.createElement( 'button' );
+    shareButton.className = 'gallery-share-button';
+    shareButton.type = 'button';
+    shareButton.textContent = asset.isPublic ? 'Remove from community' : 'Publish to community';
+    shareButton.setAttribute( 'aria-pressed', String( asset.isPublic ) );
+    shareButton.addEventListener( 'click', async () => {
+      shareButton.disabled = true;
+      try {
+        const response = await fetch( `/api/assets/${encodeURIComponent( asset.id )}/share`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify( { isPublic: !asset.isPublic } ),
+        } );
+        const result = await readJsonResponse( response );
+        if ( !response.ok ) throw new Error( result.error || 'Unable to update sharing.' );
+        setGalleryStatus( result.isPublic
+          ? `"${asset.name}" is now in the community gallery.`
+          : `"${asset.name}" was removed from the community gallery.` );
+        await loadGallery( 'mine' );
+      } catch ( error ) {
+        console.error( 'Unable to update asset sharing:', error );
+        setGalleryStatus( error.message || 'Unable to update sharing.' );
+      } finally {
+        shareButton.disabled = false;
+      }
+    } );
+    item.append( shareButton );
+  }
+
+  return item;
+}
+
+async function loadGallery( mode = activeGalleryMode ) {
+  activeGalleryMode = mode;
+  const isCommunityGallery = mode === 'community';
+  myGalleryTab.setAttribute( 'aria-selected', String( !isCommunityGallery ) );
+  myGalleryTab.tabIndex = isCommunityGallery ? -1 : 0;
+  communityGalleryTab.setAttribute( 'aria-selected', String( isCommunityGallery ) );
+  communityGalleryTab.tabIndex = isCommunityGallery ? 0 : -1;
+  galleryItems.setAttribute( 'aria-labelledby', isCommunityGallery ? 'community-gallery-tab' : 'my-gallery-tab' );
+  galleryStatus.textContent = isCommunityGallery ? 'Loading community assets...' : 'Loading your assets...';
+
   try {
-    const response = await fetch( '/api/assets' );
+    const response = await fetch( isCommunityGallery ? '/api/community-assets' : '/api/assets' );
     const assets = await readJsonResponse( response );
-    if ( !response.ok ) throw new Error( assets.error || 'Unable to load your gallery.' );
+    if ( !response.ok ) throw new Error( assets.error || 'Unable to load the gallery.' );
     if ( !Array.isArray( assets ) ) throw new Error( 'Gallery data has an invalid format.' );
+    if ( mode !== activeGalleryMode ) return;
 
     savedAssets = assets;
-    galleryItems.replaceChildren( ...assets.map( asset => {
-      const item = document.createElement( 'button' );
-      item.className = 'gallery-item';
-      item.type = 'button';
-      item.draggable = true;
-      item.dataset.assetId = asset.id;
-      item.setAttribute( 'aria-label', `Add ${asset.name} to the scene` );
-      let thumbnail = asset.thumbnail;
-      if ( !thumbnail ) {
-        try {
-          thumbnail = createAssetThumbnail( asset.scene );
-        } catch ( error ) {
-          console.error( `Unable to create a preview for "${asset.name}":`, error );
-        }
-      }
-
-      if ( thumbnail ) {
-        const preview = document.createElement( 'img' );
-        preview.src = thumbnail;
-        preview.alt = `${asset.name} preview`;
-        preview.loading = 'lazy';
-        item.append( preview );
-      } else {
-        const placeholder = document.createElement( 'span' );
-        placeholder.className = 'gallery-item-preview';
-        placeholder.textContent = 'Preview unavailable';
-        item.append( placeholder );
-      }
-      const name = document.createElement( 'span' );
-      name.className = 'gallery-item-name';
-      name.textContent = asset.name;
-      item.append( name );
-      item.addEventListener( 'dragstart', event => {
-        event.dataTransfer.setData( 'text/plain', asset.id );
-        event.dataTransfer.effectAllowed = 'copy';
-      } );
-      item.addEventListener( 'click', () => addAssetToScene( asset ) );
-      return item;
-    } ) );
-    setGalleryStatus( assets.length ? `${assets.length} saved asset${assets.length === 1 ? '' : 's'}` : 'No saved assets yet.' );
+    galleryItems.replaceChildren( ...assets.map( asset => createGalleryCard( asset, isCommunityGallery ) ) );
+    setGalleryStatus( assets.length
+      ? `${assets.length}${isCommunityGallery ? ' community' : ' of your'} asset${assets.length === 1 ? '' : 's'}`
+      : isCommunityGallery ? 'No community assets have been published yet.' : 'No saved assets yet.' );
   } catch ( error ) {
     console.error( 'Unable to load asset gallery:', error );
-    setGalleryStatus( error.message || 'Unable to load your gallery.' );
+    if ( mode === activeGalleryMode ) setGalleryStatus( error.message || 'Unable to load the gallery.' );
+  }
+}
+
+myGalleryTab.addEventListener( 'click', () => loadGallery( 'mine' ) );
+communityGalleryTab.addEventListener( 'click', () => loadGallery( 'community' ) );
+galleryTabs.addEventListener( 'keydown', event => {
+  if ( ![ 'ArrowLeft', 'ArrowRight', 'Home', 'End' ].includes( event.key ) ) return;
+  event.preventDefault();
+  const nextTab = event.key === 'Home' || event.key === 'ArrowLeft'
+    ? myGalleryTab
+    : communityGalleryTab;
+  nextTab.focus();
+  nextTab.click();
+} );
+
+async function addCommunityAssetToMini( assetId, clientX, clientY ) {
+  try {
+    const response = await fetch( `/api/community-assets/${encodeURIComponent( assetId )}` );
+    const asset = await readJsonResponse( response );
+    if ( !response.ok ) throw new Error( asset.error || 'Unable to load that community asset.' );
+    addAssetToScene( asset, clientX, clientY );
+  } catch ( error ) {
+    console.error( 'Unable to load community asset:', error );
+    setStatus( error.message || 'Unable to load that community asset.' );
   }
 }
 
@@ -349,7 +434,11 @@ renderer.domElement.addEventListener( 'drop', event => {
     setStatus( 'That gallery asset could not be found. Refresh the gallery and try again.' );
     return;
   }
-  addAssetToScene( asset, event.clientX, event.clientY );
+  if ( activeGalleryMode === 'community' ) {
+    addCommunityAssetToMini( asset.id, event.clientX, event.clientY );
+  } else {
+    addAssetToScene( asset, event.clientX, event.clientY );
+  }
 } );
 
 titleButton.addEventListener( 'click', () => {

@@ -370,24 +370,50 @@ textarea {
     font-size: 0.9rem;
 }
 
+.gallery-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+}
+
+.gallery-tab {
+    padding: 0.55rem 0.4rem;
+    border: 1px solid rgba(49, 91, 63, 0.3);
+    color: var(--green);
+    background: #f7f8f2;
+}
+
+.gallery-tab[aria-selected="true"] {
+    color: var(--light-green);
+    background: var(--green);
+}
+
 .gallery-items {
     display: grid;
     gap: 0.5rem;
 }
 
 .gallery-item {
-    display: block;
-    width: 100%;
     overflow: hidden;
     border: 1px solid rgba(49, 91, 63, 0.24);
     border-radius: 0.75rem;
     color: var(--green);
     background: #f7f8f2;
+}
+
+.gallery-item-add {
+    display: block;
+    width: 100%;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 0;
+    color: var(--green);
+    background: transparent;
     text-align: left;
     cursor: grab;
 }
 
-.gallery-item img,
+.gallery-item-add img,
 .gallery-item-preview {
     display: grid;
     width: 100%;
@@ -398,6 +424,11 @@ textarea {
     background: #e8efdf;
 }
 
+.gallery-item-add:hover {
+    background: transparent;
+    transform: none;
+}
+
 .gallery-item-name {
     display: block;
     padding: 0.55rem 0.7rem;
@@ -405,8 +436,31 @@ textarea {
     font-weight: 700;
 }
 
-.gallery-item:active {
+.gallery-item-add:active {
     cursor: grabbing;
+}
+
+.gallery-item-author {
+    margin: 0;
+    padding: 0 0.7rem 0.5rem;
+    overflow-wrap: anywhere;
+    font-size: 0.85rem;
+}
+
+.gallery-share-button {
+    width: calc(100% - 1rem);
+    margin: 0 0.5rem 0.5rem;
+    padding: 0.5rem;
+    border: 1px solid rgba(49, 91, 63, 0.3);
+    color: var(--green);
+    background: #f7f8f2;
+    font-size: 0.85rem;
+}
+
+.gallery-share-button:hover,
+.gallery-tab:hover {
+    color: var(--light-green);
+    background: var(--brown);
 }
 
 .maker-page .mini-actions {
