@@ -10,17 +10,17 @@
     "dev": "node server.js",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test",
     "start": "node server.js"
   },
   "dependencies": {
+    "aws-sdk": "^2.1693.0",
     "bcryptjs": "^3.0.3",
     "ejs": "^7.0.1",
     "express": "^5.2.1",
-    "express-mysql-session": "^3.0.3",
     "express-session": "^1.19.0",
     "mongodb": "^7.7.0",
-    "mysql2": "^3.24.5",
+    "pg": "^8.23.1",
     "three": "^0.186.1",
     "three.interactive": "^1.8.0"
   },

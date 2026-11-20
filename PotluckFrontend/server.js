@@ -1,39 +1,68 @@
 import express from 'express';
 import session from 'express-session';
-import MySQLStoreFactory from 'express-mysql-session';
-import mysql from 'mysql2';
+import pg from 'pg';
+import AWS from 'aws-sdk';
 import bcrypt from 'bcryptjs';
 import { createServer as createViteServer } from 'vite';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { PostgresSessionStore } from './postgres-session-store.js';
 
 const envFile = fileURLToPath(new URL('.env', import.meta.url));
 if (existsSync(envFile)) {
   process.loadEnvFile(envFile);
 }
 
-const missingConfig = ['SESSION_SECRET', 'MYSQL_HOST', 'MYSQL_USER']
+const missingConfig = [
+  'SESSION_SECRET',
+  'DB_HOST',
+  'DB_USER',
+  'DB_NAME',
+  'AWS_REGION',
+  'DB_SSL_CA',
+]
   .filter((key) => !process.env[key]);
 if (missingConfig.length) {
-  throw new Error(`Missing ${missingConfig.join(', ')}. Copy .env.example to .env and fill in your local settings.`);
+  throw new Error(`Missing ${missingConfig.join(', ')}. Configure the Aurora PostgreSQL settings before starting the app.`);
 }
+
+const dbPort = Number(process.env.DB_PORT || 5432);
+if (!Number.isInteger(dbPort) || dbPort < 1 || dbPort > 65535) {
+  throw new Error('DB_PORT must be an integer between 1 and 65535.');
+}
+
+AWS.config.update({ region: process.env.AWS_REGION });
+const signer = new AWS.RDS.Signer({
+  region: process.env.AWS_REGION,
+  hostname: process.env.DB_HOST,
+  port: dbPort,
+  username: process.env.DB_USER,
+});
 
 const app = express();
 
-const db = mysql.createPool({
-  host: process.env.MYSQL_HOST,
-  port: Number(process.env.MYSQL_PORT || 3306),
-  user: process.env.MYSQL_USER,
-  password: process.env.MYSQL_PASSWORD,
-  database: process.env.MYSQL_DATABASE || 'potluck',
-  waitForConnections: true,
-  connectionLimit: 10,
+const db = new pg.Pool({
+  host: process.env.DB_HOST,
+  port: dbPort,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: () => new Promise((resolve, reject) => {
+    signer.getAuthToken({}, (error, token) => {
+      if (error) reject(error);
+      else resolve(token);
+    });
+  }),
+  ssl: {
+    ca: readFileSync(process.env.DB_SSL_CA),
+    rejectUnauthorized: true,
+  },
+  max: 10,
 });
-const dbPromise = db.promise();
-
-const MySQLStore = MySQLStoreFactory(session);
-const sessionStore = new MySQLStore({}, db);
+db.on('error', (error) => {
+  console.error('Unexpected PostgreSQL pool error:', error);
+});
+const sessionStore = new PostgresSessionStore(db);
 
 app.set('view engine', 'ejs');
 app.set('views', './views');
@@ -109,8 +138,8 @@ function serializeAssetScene(scene) {
 
 app.get('/api/assets', requireApiLogin, async (req, res) => {
   try {
-    const [assets] = await dbPromise.execute(
-      'SELECT id, name, scene, thumbnail, updated_at AS updatedAt FROM assets WHERE user_id = ? ORDER BY updated_at DESC',
+    const { rows: assets } = await db.query(
+      'SELECT id, name, scene, thumbnail, updated_at AS "updatedAt" FROM assets WHERE user_id = $1 ORDER BY updated_at DESC',
       [req.session.userId],
     );
     res.json(assets.map((asset) => ({ ...asset, scene: JSON.parse(asset.scene) })));
@@ -130,11 +159,11 @@ app.post('/api/assets', requireApiLogin, async (req, res) => {
     const name = req.body.name.trim();
     const scene = serializeAssetScene(req.body.scene);
     const thumbnail = req.body.thumbnail || null;
-    await dbPromise.execute(
-      'INSERT INTO assets (id, user_id, name, scene, thumbnail) VALUES (?, ?, ?, ?, ?)',
+    const { rows: [asset] } = await db.query(
+      'INSERT INTO assets (id, user_id, name, scene, thumbnail) VALUES ($1, $2, $3, $4, $5) RETURNING id',
       [id, req.session.userId, name, scene, thumbnail],
     );
-    res.status(201).json({ id, name });
+    res.status(201).json({ id: asset.id, name });
   } catch (error) {
     console.error('Unable to create asset:', error);
     res.status(500).json({ error: 'Unable to save this asset right now.' });
@@ -152,13 +181,13 @@ app.put('/api/assets/:id', requireApiLogin, async (req, res) => {
     const name = req.body.name.trim();
     const scene = serializeAssetScene(req.body.scene);
     const thumbnail = req.body.thumbnail || null;
-    const [result] = await dbPromise.execute(
-      'UPDATE assets SET name = ?, scene = ?, thumbnail = COALESCE(?, thumbnail) WHERE id = ? AND user_id = ?',
+    const result = await db.query(
+      'UPDATE assets SET name = $1, scene = $2, thumbnail = COALESCE($3, thumbnail) WHERE id = $4 AND user_id = $5',
       [name, scene, thumbnail, req.params.id, req.session.userId],
     );
-    if (result.affectedRows === 0) {
-      const [ownedAssets] = await dbPromise.execute(
-        'SELECT id FROM assets WHERE id = ? AND user_id = ?',
+    if (result.rowCount === 0) {
+      const { rows: ownedAssets } = await db.query(
+        'SELECT id FROM assets WHERE id = $1 AND user_id = $2',
         [req.params.id, req.session.userId],
       );
       if (!ownedAssets.length) {
@@ -199,8 +228,8 @@ app.post('/login', async (req, res) => {
   }
 
   try {
-    const [users] = await dbPromise.execute(
-      'SELECT id, name, password, description FROM users WHERE name = ? OR email = ? LIMIT 1',
+    const { rows: users } = await db.query(
+      'SELECT id, name, password, description FROM users WHERE LOWER(name) = LOWER($1) OR LOWER(email) = LOWER($2) LIMIT 1',
       [identity, identity],
     );
     const user = users[0];
@@ -236,19 +265,19 @@ app.post('/signup', async (req, res) => {
 
   try {
     const passwordHash = await bcrypt.hash(password, 12);
-    const [result] = await dbPromise.execute(
-      'INSERT INTO users (name, password, email, description) VALUES (?, ?, ?, ?)',
+    const { rows: [user] } = await db.query(
+      'INSERT INTO users (name, password, email, description) VALUES ($1, $2, $3, $4) RETURNING id',
       [name, passwordHash, email, description || null],
     );
 
     await regenerateSession(req);
-    req.session.userId = result.insertId;
+    req.session.userId = user.id;
     req.session.userName = name;
     req.session.description = description;
     await saveSession(req);
     res.redirect('/create');
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') {
+    if (error.code === '23505') {
       return res.status(409).render('register', {
         vite: true,
         error: 'That name or email is already registered.',
@@ -297,19 +326,26 @@ app.get('/modeller', requireLogin, (req, res) => {
 app.use(vite.middlewares);
 
 try {
-  await dbPromise.query('SELECT 1');
-  const [thumbnailColumn] = await dbPromise.execute(
-    'SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
-    ['assets', 'thumbnail'],
+  await db.query('SELECT 1');
+  const { rows: [schema] } = await db.query(
+    "SELECT to_regclass('public.users') AS users, to_regclass('public.assets') AS assets, to_regclass('public.user_sessions') AS user_sessions",
   );
-  if (!thumbnailColumn.length) {
-    await dbPromise.query('ALTER TABLE assets ADD COLUMN thumbnail MEDIUMTEXT NULL AFTER scene');
+  const missingTables = Object.entries(schema)
+    .filter(([, table]) => !table)
+    .map(([name]) => name);
+  if (missingTables.length) {
+    throw new Error(`Missing database tables: ${missingTables.join(', ')}. Apply schema.sql before starting the app.`);
   }
+  const sessionCleanup = setInterval(() => {
+    db.query('DELETE FROM user_sessions WHERE expire <= NOW()')
+      .catch((error) => console.error('Unable to remove expired sessions:', error));
+  }, 15 * 60 * 1000);
+  sessionCleanup.unref();
   app.listen(3000, () => {
     console.log('App running at http://localhost:3000');
   });
 } catch (error) {
-  console.error('Could not connect to the Potluck MySQL database:', error);
-  await dbPromise.end();
+  console.error('Could not connect to the Potluck Aurora PostgreSQL database:', error);
+  await db.end();
   process.exitCode = 1;
 }

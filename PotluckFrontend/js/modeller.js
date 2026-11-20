@@ -13,7 +13,7 @@ renderer.domElement.setAttribute( 'aria-label', '3D asset preview' );
 const controls = new OrbitControls( camera, renderer.domElement );
 controls.enableDamping = true;
 controls.enableZoom = true;
-controls.minDistance = 2;
+controls.minDistance = 1;
 controls.maxDistance = 20;
 controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
 controls.mouseButtons.LEFT = null;
