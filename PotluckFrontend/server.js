@@ -1,11 +1,9 @@
 import express from 'express';
 import session from 'express-session';
 import pg from 'pg';
-import { Signer } from '@aws-sdk/rds-signer';
 import bcrypt from 'bcryptjs';
 import { createServer as createViteServer } from 'vite';
-import { existsSync, readFileSync } from 'node:fs';
-import { rootCertificates } from 'node:tls';
+import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { PostgresSessionStore } from './postgres-session-store.js';
@@ -17,44 +15,17 @@ if (existsSync(envFile)) {
 
 const missingConfig = [
   'SESSION_SECRET',
-  'DB_HOST',
-  'DB_USER',
-  'DB_NAME',
-  'AWS_REGION',
-  'DB_SSL_CA',
+  'DATABASE_URL',
 ]
   .filter((key) => !process.env[key]);
 if (missingConfig.length) {
-  throw new Error(`Missing ${missingConfig.join(', ')}. Configure the Aurora PostgreSQL settings before starting the app.`);
+  throw new Error(`Missing ${missingConfig.join(', ')}. Configure the Neon PostgreSQL connection before starting the app.`);
 }
-
-const dbPort = Number(process.env.DB_PORT || 5432);
-if (!Number.isInteger(dbPort) || dbPort < 1 || dbPort > 65535) {
-  throw new Error('DB_PORT must be an integer between 1 and 65535.');
-}
-
-const signer = new Signer({
-  region: process.env.AWS_REGION,
-  hostname: process.env.DB_HOST,
-  port: dbPort,
-  username: process.env.DB_USER,
-});
 
 const app = express();
 
 const db = new pg.Pool({
-  host: process.env.DB_HOST,
-  port: dbPort,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: () => signer.getAuthToken(),
-  ssl: {
-    ca: [
-      ...rootCertificates,
-      readFileSync(process.env.DB_SSL_CA, 'utf8'),
-    ],
-    rejectUnauthorized: true,
-  },
+  connectionString: process.env.DATABASE_URL,
   max: 10,
 });
 db.on('error', (error) => {
@@ -150,7 +121,7 @@ app.get('/api/assets', requireApiLogin, async (req, res) => {
 app.get('/api/community-assets', requireApiLogin, async (req, res) => {
   try {
     const { rows: assets } = await db.query(
-      `SELECT assets.id, assets.name, assets.thumbnail,
+      `SELECT assets.id, assets.name, assets.scene, assets.thumbnail,
               users.name AS "sharedBy", assets.updated_at AS "updatedAt"
        FROM assets
        JOIN users ON users.id = assets.user_id
@@ -403,7 +374,7 @@ try {
     console.log('App running at http://localhost:3000');
   });
 } catch (error) {
-  console.error('Could not connect to the Potluck Aurora PostgreSQL database:', error);
+  console.error('Could not connect to the Potluck Neon PostgreSQL database:', error);
   await db.end();
   process.exitCode = 1;
 }

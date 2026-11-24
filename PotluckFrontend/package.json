@@ -14,7 +14,8 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "@aws-sdk/rds-signer": "^3.0.0",
+    "@neon/config": "^1.14.6",
+    "@neon/env": "^2.1.9",
     "bcryptjs": "^3.0.3",
     "ejs": "^7.0.1",
     "express": "^5.2.1",
